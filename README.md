@@ -1,0 +1,2 @@
+# iQalc
+Precision Decimal Calculator
