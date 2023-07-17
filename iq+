@@ -1,37 +1,58 @@
 #!/bin/sh
 # IQ+/iq+ - Extended version of the iqalc/iq calculator
 
-# Copyright Gilbert Ashley 5 July 2023
+# Copyright Gilbert Ashley 17 July 2023
 # Contact:perceptronic@proton.me  Subject-line: iQalc
 
 # Main functions: pow, nroot, logx, exp, ipow, epow
-# Other functions: fpow, getConst
+# Other functions: fpow, getConst, iqXhelp
 
 # disable some style checks and un-helpful suggestions
 # shellcheck disable=SC2034,SC2086,SC2295,SC2004,SC1090,SC1091,SC2123,SC2317
 
-iqplusversion=1.79
+iqplusversion=1.80
 
 # trigonometry functions moved to iq_trig
 # factorial gcf dec2ratio - moved to iq_misc
 # testing with yash found a multibyte superscript character in a comment
 # ipow - fix dropping of prec when base is integer -in case exponent is negative
+# logx - add factors for base 3 and 4
+# logx - increase precision by not truncating early and increasing iterations.
+# exp - re-write using new method which increases precision, and add special-case handling
+# pow - discard old real, commented method for calculating non-integer exponents
+# pow - expanded range of inputs through improvements to logx and exp
+# getConst -  return default 30 digits when more is requested
+# raise default precision for iq+ from 5 to 6
+# autoload iq_trig and iq_misc modules
 
 # default precision 
-defprec=${defprec:-5}
+defprec=${defprec:-6}
 
-# pow - raises a decimal number to a given power (3.14 ^-4.12)
-# depends on: 'logx' 'exp' 'ipow' 'epow' 'mul' 'div'
+# pow - raises a decimal number to a given power
+# depends on: 'logx' 'exp' 'ipow' 'fpow' 'mul' 'div'
 pow_help() {
 echo "   'pow' usage: 'pow [-s?] base [^] exponent'
     
+    Raises a number (base) to a power (exponent).
+    For integer exponents, 'base' and scale are unlimited.
     Example: 'pow -s9 3.141592 ^ 6' = 961.387993507
     Example: 'pow -s12 12.141592 ^ -6' = 0.000000312137
     
-    Fractional exponents are supported, if 'base' < 4.0
-    Example: 'pow -s11 3.14 ^ -4.123558' = 0.00893062336
-    Accuracy is ~11 places but increases as 'base' nears zero
-    Example: 'pow -s15 0.618 ^ 7.385' = 0.028605522741231
+    Fractional exponents are supported, within certain
+    ranges, shown roughly below:
+    59999.99999 ^ 0.999                     0.99999 ^ 1000009.999
+    239.99999 ^ 1.999                       1.09999 ^ 109.999
+    35.99999 ^ 2.999    5.99999 ^ 5.999     1.24999 ^ 45.999
+    14.99999 ^ 3.999                        1.49999 ^ 26.999
+    8.99999 ^ 4.999                         1.99999 ^ 14.999
+    
+    As seen above, when either 'base' or 'exponent' are <1,
+    the allowed range of the other becomes relatively large.
+    Above ranges support scales of 6-12, with a slightly wider
+    range supporting a reduced scale of 3 less than requested.
+    Example: 'pow -s8 7.999999 6.999999'  =  2097145.80409
+    
+    Execution times increases dramatically when scale is >8.
     " 
 }
 pow() { scale_pow=$defprec
@@ -72,55 +93,35 @@ pow() { scale_pow=$defprec
             case $pexp_int in 
                 1) pres=$pbase_int'.'$pbasefrac ;; # cant get here
                 2) pres=$( mul -s$scale_pow $pbase_int'.'$pbasefrac  $pbase_int'.'$pbasefrac ) ;;
-                *) pres=$( ipow -s$scale_pow $pbase_int'.'$pbasefrac $pexp_int ) ;;
+                *)  case $pbasefrac in 
+                        # both base and exp are integers, so use fpow for 4X faster result
+                        0) pres=$( fpow -s$scale_pow $pbase_int'.'$pbasefrac $pexp_int ) ;;
+                        # otherwise, use ipow, which will use epow when base<1
+                        *) pres=$( ipow -s$scale_pow $pbase_int'.'$pbasefrac $pexp_int ) ;;
+                    esac
+                ;;
             esac
         ;; 
-        *)  # if exponent is non-integer and base<4 use e^x method
-            # a^x = e^(x(ln(a))
-            if [ $pbase_int -lt 4 ] ; then
-                pmed_scale=$((scale_pow+3+pbase_int))
-                plog=$( logx -s$pmed_scale n $pbase )
-                pprod=$( mul -s$pmed_scale $pexp $plog )
-                pres=$( exp -s$((scale_pow+2)) $pprod )
+        *)  # if exponent is non-integer and ln(base)* pexp < 11
+            # calculate complex powers using: a^x = e^(x(ln(a))
+            case $pexp in
+                0.[9876]*) pmed_scale=$((scale_pow+4)) ;;
+                0.*) pmed_scale=$((scale_pow+2)) ;;
+                *) pbase_int=${pbase%.*} ; pmed_scale=$((scale_pow+4+${#pbase_int})) ;;
+            esac
+            plog=$( logx -s$pmed_scale n $pbase )
+            pprod=$( mul -s$pmed_scale $pexp $plog )
+            # this limit is ln(base)* pexp < 11
+            rangecheck=${pprod%.*}
+            if [ $rangecheck -lt 11 ] ; then
+                pres=$( exp -s$pmed_scale $pprod )
+            elif [ $rangecheck -lt 15 ] ; then
+                # accept wider range but at reduced precision
+                pres=$( exp -s$pmed_scale $pprod )
+                [ $scale_pow -gt 6 ] && scale_pow=$(( scale_pow -3 ))
             else
-                # for base>=4, we could use a long, slow, real calculation
-                # but it's simply too slow when running under 'bash' or 'zsh'
-                # if you have ksh, dash or all the time in the world,
-                # you could try commenting the folowing 2 lines...
-                echo "-->pow: base '$pbase_int.$pbasefrac' out of range" >&2 
+                echo "-->pow: 'ln(base) * exponent' must be <15. Your 'ln($pbase) * $expx' = ${pprod%.*}+ \n" >&2 
                 pow_help >&2 ; return 1
-                
-                # truncate exponent fraction to max 2 places
-                case $pexpfrac in 
-                    ?) nom=$pexpfrac ;; *) nom=${pexpfrac%"${pexpfrac#*??}"*} ;;
-                esac
-                # establish and reduce the arguments to nroot
-                denom=100 
-                case $nom in 
-                    ?1|?3|?7|?9) case $nom in 0*) nom=${nom#*?} ;; esac ;; 
-                    1|3|7|9) denom=10 ;; 5) nom=1 denom=2 ;; ?) denom=5 nom=$((nom/2)) ;;
-                    *)  case $nom in 0*) nom=${nom#*?} ;; esac
-                        for simpl in 8 5 4 2 5 4 2 ;do
-                            if [ $(( $nom % $simpl )) -eq 0 ] && [  $(( $denom % $simpl )) -eq 0 ] ; then
-                                nom=$(( $nom / $simpl )) ; denom=$(( $denom / $simpl ))
-                            fi
-                        done 
-                    ;;
-                esac
-                # use a generous intermediate scale
-                pmed_scale=$((scale_pow * 2))
-                # get the result of the exponent integer
-                pres=$( ipow -s$pmed_scale $pbase_int'.'$pbasefrac $pexp_int )
-                
-                # calculate the root, then the power
-                case $nom in
-                    1)  nth_root=$( nroot -s$pmed_scale $pbase_int.$pbasefrac $denom )
-                        pres=$( mul -s$pmed_scale $pres $nth_root ) ;;
-                    *)  nth_root=$( nroot -s$pmed_scale $pbase_int.$pbasefrac $denom )
-                        nth=$( ipow -s$pmed_scale $nth_root $nom )
-                        pres=$( mul -s$pmed_scale $pres $nth ) 
-                        ;;
-                esac
             fi
         ;;
     esac
@@ -128,15 +129,14 @@ pow() { scale_pow=$defprec
     # if the exponent is negative, invert the result
     case $pexpneg in '-') pres=$( div -s$scale_pow 1 / $pres ) ;;esac
     # truncate or trim to scale
-    case $scale_pow in 0) echo $pbaseneg${pres%.*} ;; *) pfrac=${pres#*.} 
-        while [ ${#pfrac} -gt $scale_pow ] ;do pfrac=${pfrac%?*} ;done
+    case $scale_pow in 0) echo $pbaseneg${pres%.*} ;; 
+        *) pfrac=${pres#*.} ; while [ ${#pfrac} -gt $scale_pow ] ;do pfrac=${pfrac%?*} ;done
         echo $pbaseneg${pres%.*}'.'${pfrac:-0} ;; 
     esac
-    #pbaseneg='' pexpneg=''
 
 } ## pow
-# scale_pow= pbase= pexp= pbaseneg= pexpneg= pbase_int= pbasefrac= i_scale= pmed_scale=
-# pres= simple_frac nom= denom= nth_root= nth= pfrac=
+# scale_pow= pbase= pexp= pbaseneg= pexpneg= pbase_int= pbasefrac= pmed_scale=
+# plog= pprod= pres= pfrac= rangecheck=
 
 # ipow - raises a decimal number to an integer power
 # depends on: 'epow' 'logx' 'mul' 'div'
@@ -214,6 +214,7 @@ echo "    'epow' usage: 'epow [-s?,-S,-e?] base [^] exponent'
     Example for significant digits: 'epow -S9 0.14 7' = 0.00000105413504
     Example for scientific notation: 'epow -e9 0.14 7' = 1.05413504e-6
     Example for scientific notation: 'epow -e12 42.818 7' = 2.638667359224e11
+    ~2-Billion-digit Example: epow -e6 0.0105 ^ 1000000000 = 1.174730e-1978810701
     "
 }
 epow() { fstprec=$defprec   # normal scaling             # sigfig scaling
@@ -410,17 +411,19 @@ nroot() { scale_nrt=$defprec
 
 # logx - returns logarithms in base 10, e/n or 2
 # depends on: 'getConst' 'tsst' 'mul' 'div' 'add'
-# This uses a fast approximation with good precision to about 11 places
-# asking for more digits will break the result, so don't be greedy
+# This uses a fast approximation with very good precision
 # uses a power series for ln(x) and then converts to base 2 or 10 if needed
 # ln(x) = 2{ (x-1/x+1) + 1/3(x-1/x+1)^3 + 1/5(x-1/x+1)^5 + ...}
 logx_help() {
-echo "    'logx' usage: 'logx [-s?] base num1'
+echo "    'logx' usage: 'logx [-s?] base number'
     
-    Calculates logarithms to ~11 places
-    Example: 'logx -s8 10 6.7' for: log(6.7)
-    Example: 'logx -s7 n 6.7' for: ln(6.7)
-    Example: 'logx -s7 2 6.7' for: log2(6.7)
+    Calculates logarithms in base n/e, 2, 3, 4, or 10
+    Example log base10: 'logx -s8 10 6.7' for: log(6.7)
+    Example log base natural: 'logx -s7 n 6.7' for: ln(6.7)
+    Example log base2: 'logx -s7 2 6.7' for: log2(6.7)
+    
+    Accuracy is at least 20 Decimal places.
+    Execution times increase greatly when scale>=14.
    "
 }
 logx() { scale_lx=$defprec
@@ -441,50 +444,54 @@ logx() { scale_lx=$defprec
                     # possible 10^-n, if so: 0.01, 0.001, ..., return -1, -2, ...
                     tsst ${frac%1*} -eq 0  && { echo '-'${#frac}'.0' ; return ;} ;;
             esac ;; 
-        2|n|e) : ;;
-        *) echo "-->logx: False base input: e, n, 2 or 10 allowed" >&2 ; return 1 ;;
+        [234ne]) : ;;
+        *) echo "-->logx: False base input: e, n, 2, 3, 4 or 10 allowed" >&2 ; return 1 ;;
     esac
-    # set the internal scale, then determine the characteristic/rank
-    e_scale=$(($scale_lx+2)) rank=0
+    # set the internal scale, then determine the characteristic, here called 'rank'
+    e_scale=$(($scale_lx+2))
     lxE=$(getConst e $e_scale)
-    if tsst $x -lt 0.4 ; then
-        case $x in  
-            0.0*|.0*) while tsst $x -lt .4 ;do rank=$((rank-1)) x=$( mul -s$e_scale $x $lxE ) ;done ;;
-            *) rank=-1 x=$( mul -s$e_scale $x $lxE ) ;;
-        esac
-    elif tsst $x -gt 2.8 ; then
-        while tsst $x -gt 2.8 ;do rank=$((rank+1)) x=$( div -s$e_scale $x / $lxE ) ;done
-    fi
-    its=$((scale_lx+2))    # set the max number of iterations -using too many will ruin result
+    rank=0
+    # bring x into range, if needed
+    while tsst $x -lt .4 ;do rank=$((rank-1)) x=$( mul -s$e_scale $x $lxE ) ;done
+    while tsst $x -gt 2.8 ;do rank=$((rank+1)) x=$( div -s$e_scale $x / $lxE ) ;done
+    
+    its=$((scale_lx+3))    # set the max number of iterations
     case $x in 0.0*) echo "-->logx: how did we get here?" >&2 ; return 1 ;; # this happens when called incorrectly
         0.1*|0.2*) e_scale=$((scale_lx+6)) its=$(($scale_lx+6)) ;; 
         1.0*) d=${x#*.} z=0 ; while : ;do case $d in 0*) z=$((z+1)) d=${d#?*} ;; *) break ;;esac ;done
             e_scale=$((scale_lx+z+2)) ;;
     esac
+    
     # get the initial ratio of (x-1/x+1) and initialize acu and total 
-    x_m=$( add -s$e_scale $x - 1 )         x_p=$( add -s$e_scale $x + 1 )
+    x_m=$( add $x - 1 )         x_p=$( add $x + 1 )
     ratio=$( div -s$e_scale $x_m / $x_p )   total=$ratio acu=$ratio lxcnt=0 dvsr_series=3
     
     # do the iterations  (x-1/x+1)^3/3 ... (x-1/x+1)^5/5 ... (x-1/x+1)^7/7
     while [ $lxcnt -lt $its ] ;do
+        # must multiply by ratio twice to preserve sign of reults
         acu=$( mul -s$e_scale $acu $ratio )    acu=$( mul -s$e_scale $acu $ratio )
         tsst ${acu#*-} -eq 0 && break
-        sub_total=$( div -s$scale_lx $acu / $dvsr_series ) total=$( add $total $sub_total )
+        sub_total=$( div -s$e_scale $acu / $dvsr_series ) total=$( add $total $sub_total )
         lxcnt=$((lxcnt+1)) dvsr_series=$((dvsr_series+2))
     done
     lxout=$( mul -s$e_scale $total 2 )
-    lxout=$( add -s$scale_lx $lxout $rank )
     # print or convert the output according to the base
-    case $base in e|n) echo $lxout ;;
-        10) mul -s$scale_lx $lxout 0.434294481903251 ;; # 2.302585092994045
-        2) mul -s$scale_lx $lxout 1.442695040888862 ;; # 0.693147180559994
-        #3) mul -s$scale_lx $lxout 0.910239226626837 ;; # 393614240165738
+    case $base in e|n) add -s$scale_lx $rank $lxout ; return  ;;
+        *) lxout=$( add $lxout $rank ) ;;
+    esac
+    # factors derived by this formula: factor = 1 / ln(new-base)
+    case $base in
+        10) mul -s$scale_lx $lxout 0.43429448190325182765 ;; #11289 ;; # 2.3025850929940456840179915
+        2) mul -s$scale_lx $lxout 1.44269504088896340735 ;; # 99246 ;; # 0.69314718055994530941723212
+        3) mul -s$scale_lx $lxout 0.91023922662683739361 ;; # 444335   # 1.098612288668109691395
+        4) mul -s$scale_lx $lxout 0.72134752044448171348 ;; # 1.3862943611198906
     esac
 } ## logx
 # scale_lx= base= x= mask= frac= e_scale= rank= lxE= its= d= z= x_m= x_p= 
 # ratio= total= lxcnt= dvsr_series= acu= sub_total= lxout=
 
 # exp - e^x - Eulers' number 'e' raised to 'x'
+# depends on: 'exp_z' 'tsst' 'add' 'mul
 # depends on: 'exp_z' 'tsst' 'add' 'mul
 # precision is tuned to provide ~12 places for a wide range of inputs,
 # where X<19 -tested down to ~X>0.00000002
@@ -494,7 +501,8 @@ echo "    'exp' usage: 'exp [-s?] exponent'
     'e^x' - raises Euler's number 'e' to a given power 'x' (e^x),
     Example: 'exp -s15 3.6' returns: '36.598234443677978'
     Example: 'exp -s8 1.134' returns: '3.10806392'
-    Accurate to ~12 places where X<19.0
+    Accurate to ~12 places where X<19.0, ~6 places where X=19-29,
+    and ~3 places where X=29-35. 
     "
 }
 exp() { escale=$defprec
@@ -502,25 +510,53 @@ exp() { escale=$defprec
     case $1 in '') exp_help >&2 ; return 1 ;; *) expx=$1 ;;esac
     expneg=''
     case $expx in '-'*) expneg='-'  expx=${expx#*-} ;;esac
+    
+    # special cases for early exit
+    case ${expneg}${expx} in
+        0|0.0) echo 1.0 ; return ;;
+        1|1.0) getConst E $escale ; return ;;
+        -1|-1.0) div -s$escale 1 / $( getConst E $escale ) ; return ;;
+    esac
+    
     e2scale=$((escale+2))
+    rangecheck=${expx%.*}
+    if [ $rangecheck -gt 35 ] ; then
+        echo "--> exp: Input '$expx' is out of range, must be <35 " >&2
+        return 1
+    elif [ $rangecheck -gt 29 ] ; then
+        e2scale=$((escale+15))
+        escale=6
+    elif [ $rangecheck -gt 19 ] ; then
+        e2scale=$((escale+10))
+        [ $escale -gt 3 ] && escale=$((escale-3))
+    fi
+    
     # ln(10) = 2.30258509299404568401 7991454684
     ln10=2.30258509299404568401
+    #ln10=$( getConst LN10 $(($e2scale+2)) )
     # argument reduction
     # using limits of 1.1 gives us ~12 places of precision
     if tsst $expx -gt 1.1 ; then
-        pad='1'
-        while tsst $expx -gt 1.1 ; do
-            expx=$( add $expx - $ln10 ) 
-            pad=$pad'0'
-        done
+        pad='1' ; cnt=0
+        #while tsst $expx -gt 1.1 ; do
+        #    expx=$( add $expx - $ln10 ) 
+        #    pad=$pad'0'
+        #done
+        qr=$( div -s$e2scale $expx qr $ln10 )
+        mag=${qr% *} expx=${qr#*' '}
+        while [ $cnt -lt ${mag%.*} ] ; do pad=$pad'0' ; cnt=$((cnt+1))  ; done
+        
         expout=$( exp_z -s$e2scale $expx )
-        expout=$( mul -s$escale $expout $pad )
-        case $expneg in '-') div -s$escale 1 / $expout ;; *) echo $expout ;; esac
+        case $expneg in '-') div -s$escale 1 / $( mul -s$e2scale $expout $pad ) ;; 
+            *) mul -s$escale $expout $pad ;; 
+        esac
     else
-        expout=$( exp_z -s$e2scale $expx )
-        case $expneg in '-') div -s$escale 1 / $expout ;; *) echo $expout ;; esac
+        case $expneg in '-') div -s$escale 1 /$( exp_z -s$e2scale $expx )  ;; 
+            *) exp_z -s$escale $expx ;;
+        esac
     fi
 } ## exp
+# e^-x = 10-0.43429448190325x  log10(e)=0.434294481903251827651128917
 
 ### Back-end functions for pow nroot log
 # fpow is used by: nrt_solv
@@ -633,9 +669,11 @@ nrt_solv() { case $1 in -s*) nthrtsprec=${1#*-s} ; shift ;; *) nthrtsprec=$defpr
 # 'getConst e 24' returns 'e' truncated to 24 places
 # 'getConst e' alone returns 'e' to 11 places
 EE=2.718281828459045235360287471352
-ee=2.718281828459045
+ee=2.71828182845904523536
+e=2.718281828459045
 LN10=2.302585092994045684017991454684
 ln10=2.302585092994045
+# log10(e) = 0.434294481903251827651128917
 PI=3.141592653589793238462643383279
 pi=3.141592653589793
 PI_2=1.570796326794896619231321691639
@@ -650,8 +688,9 @@ getConst(){
         phi|PHI) dummy=$PHI short=$phi ;; ln10|LN10) dummy=$LN10 short=$ln10 ;;
         *) echo "-->getConst: Unknown Constant '$1'" >&2 ; return 1 ;; 
     esac
-    case $2 in ?*) pcnt=-2 pout='' 
-        [ $2 -gt 30 ] && { echo "-->getConst: Constant length must be <=30" >&2 ; return 1 ;}
+    case $2 in ?*) pcnt=-2 cout='' 
+        #[ $2 -gt 30 ] && { echo "-->getConst: Constant length fixed at 30" >&2 ; echo $dummy ; return ;}
+        [ $2 -gt 30 ] && { echo $dummy ; return ;}
         while [ $pcnt -lt $2 ] ;do 
             pmsk=${dummy#*?} cout=$cout${dummy%$pmsk*} dummy=$pmsk pcnt=$((pcnt+1))
         done
@@ -715,23 +754,26 @@ exp_z() { escale=$defprec
 ### End back-end functions for pow nroot logx exp
 
 iqxmain="pow nroot logx exp ipow epow "
-iqxutil="getConst iqXhelp "
+iqxutil="getConst fpow iqXhelp "
 
 iqXhelp() {
 echo "      IQ+ - Version $iqplusversion - Copyright 2023 Gilbert Ashley
     
     iq+ extends the 'iq' calculator, with these functions:
     
-    Powers and Roots: $iqxmain
-    Other pow-related: $iqxutil
+    Powers, Roots, Logs: $iqxmain
+    iq+ Utilities: $iqxutil
     Trigonometry: $iqtrig
+    Trig Utils: $iqtrigutil
+    Misc functions: $iqmisc
+    Misc functions: $iqmisc2
     
     For help, call a function with null argument or '-h':
     Example: 'iq+ logx -h' or simply: 'iq+ logx'
     
     'pow' is the main power function. 'ipow' and 'epow'
     are backends to 'pow' and for special use cases.
-    'logx' returns logs base 2, 'e/n' or 10 (log2/ln/log)
+    'logx' returns logs in base 2, 3, 4, 'e/n' or 10
     'nroot' returns the 'nth' root of a decimal number
     'exp' returns 'e^x' Eulers Number to the power of x
     
@@ -739,7 +781,7 @@ echo "      IQ+ - Version $iqplusversion - Copyright 2023 Gilbert Ashley
     support Arbitrary Precision. See any functions' help
     for limits and tips on supported precision.
     To see a complete list of functions pre-loaded by iq+
-    Use the command: 'iq+ list_funcs'
+    Use the command: 'iq+ list'
     "
 }
 
@@ -759,25 +801,25 @@ if [ "1" != "$src" ]  ; then
     case $0 in 
         ./iq+) src=1 . ./iq 
             . ./iq_trig.sh # uncomment for auto-loading
-            #. ./iq_misc.sh # uncomment for auto-loading
+            . ./iq_misc.sh # uncomment for auto-loading
             #. ./iq_util.sh # uncomment for auto-loading
             #. ./iq_ai.sh   # uncomment for auto-loading
         ;;
         ./iq+?*) vers=${0#*'+'} ; src=1 . ./iq$vers 
             . ./iq_trig$vers # uncomment for auto-loading
-            #. ./iq_misc$vers # uncomment for auto-loading
+            . ./iq_misc$vers # uncomment for auto-loading
             #. ./iq_util$vers # uncomment for auto-loading
             #. ./iq_ai$vers   # uncomment for auto-loading
         ;; 
         *iq+) src=1 . iq 
             . iq_trig.sh # uncomment for auto-loading
-            #. iq_misc.sh # uncomment for auto-loading
+            . iq_misc.sh # uncomment for auto-loading
             #. iq_util.sh # uncomment for auto-loading
             #. iq_ai.sh   # uncomment for auto-loading
         ;;
         *iq+?*) vers=${0#*'+'} ; src=1 . iq$vers 
             . iq_trig$vers # uncomment for auto-loading
-            #. iq_misc$vers # uncomment for auto-loading
+            . iq_misc$vers # uncomment for auto-loading
             #. iq_util$vers # uncomment for auto-loading
             #. iq_ai$vers   # uncomment for auto-loading
         ;; 

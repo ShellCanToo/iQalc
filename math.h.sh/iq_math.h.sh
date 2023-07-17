@@ -1,7 +1,7 @@
 #!/bin/sh
 # - iQalc or 'iq' is a precision decimal calculator for the shell
 
-# Copyright Gilbert Ashley 5 July 2023
+# Copyright Gilbert Ashley 17 July 2023
 # Contact:  perceptronic@proton.me  Subject-line: iQalc
 
 # Operations supported: addition, subtraction, multiplication, division,
@@ -26,7 +26,7 @@
 # disable some style checks from shellcheck
 # shellcheck disable=SC2086,SC2004,SC2295,SC2123
 
-# iq_math.h version=1.79
+# iq_math.h.sh version=1.80
 
 # default precision
 defprec=${defprec:-6}

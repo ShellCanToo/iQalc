@@ -1,7 +1,7 @@
 #!/bin/sh
 # - iQalc or 'iq' is a precision decimal calculator for the shell
 
-# Copyright Gilbert Ashley 5 July 2023
+# Copyright Gilbert Ashley 17 July 2023
 # Contact: perceptronic@proton.me  Subject-line: iQalc
 
 # Operations supported: addition, subtraction, multiplication, division,
@@ -30,7 +30,7 @@
 # add still does no rounding, but one can do this: iq round hfup -s4 $(iq add -s5 1.23456 2.0 )
 # added SC2154,SC2015,SC1090,SC1091,SC2181
 
-iqversion=1.79
+iqversion=1.80
 
 # default precision
 defprec=${defprec:-5}
@@ -119,7 +119,8 @@ echo "  'add' usage: 'add [-s?] num1 [+-] num2 ...'
     If scale is zero '-s0', output is in integer form
     Example: 'add -s0 2.340876 1827.749048' = 1830
     
-    Results are only truncated after a series of inputs.
+    When summing a series of inputs, results are only 
+    truncated after the last calculation.
   "
 }
 add(){ aprec=off
@@ -456,8 +457,10 @@ echo "  'div' usage: 'div [-s?] [-r..] num1 ( / % m qr ) num2'
     div -s8 -3.52 / 1.4 = -2.51428571
     '%' returns the shell-and-C-style remainder
     div -s2 -3.52 % 1.4 = -0.72
+    
     'm' returns the floored python-style modulo
     div -s2 -3.52 m 1.4 = 0.68
+    
     'qr' returns both the quotient and remainder
     div -s2 -3.52 qr 1.4 = -2.0 -0.72
     
@@ -852,13 +855,15 @@ echo "          IQ - Version $iqversion - Copyright 2023 Gilbert Ashley
 }
 
 # list all loaded functions
-list_funcs() {
+list() {
     echo " iq  main functions:"$iqmain 
     [ -n "$iqxmain" ] && echo " iq+ main functions: "$iqxmain 
     [ -n "$iqxutil" ] && echo " iq+ util functions: "$iqxutil
     [ -n "$iqtrig" ] && echo " iq  trig functions: "$iqtrig
+    [ -n "$iqtrigutil" ] && echo " iq  trig utilities: "$iqtrigutil
     [ -n "$iqutil" ] && echo " iq  util functions: "$iqutil
     [ -n "$iqmisc" ] && echo " iq  misc functions: "$iqmisc
+    [ -n "$iqmisc2" ] && echo " iq  misc functions: "$iqmisc2
     if [ -n "$iqaimain" ] ; then
         echo " iq_ai  activations:"$iqaimain
         echo " iq_ai  derivatives:"$iqaiderivs
@@ -912,7 +917,7 @@ if [ "1" != "$src" ] ; then
             while : ; do
                 read -r fun opts
                 case ${fun%_help*} in q|exit|quit) exit 0 ;;
-                    help) interactive_help ;; list) list_funcs ;; 
+                    help) interactive_help ;; list) list ;; 
                     cmp3w|tsst) "$fun" $opts ; echo $? ;;
                     load) module=$opts okload='fail'
                         case $module in 
@@ -954,7 +959,7 @@ if [ "1" != "$src" ] ; then
     
     # Normal execution as a program
     # Same vetting as above
-    allowed=" add mul div tsst cmp3w round iqhelp list_funcs "
+    allowed=" add mul div tsst cmp3w round iqhelp list "
     case "${allowed}" in
         *" ${1%_help*} "*) : ;;
         *)  echo "----> ${0##*/}: Invalid function name, exploit attempt or insult:----> $*" >&2 

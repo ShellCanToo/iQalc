@@ -2,14 +2,14 @@
 
 # This file is part of the iQalc/IQ precision calculator
 
-# Copyright Gilbert Ashley 5 July 2023
+# Copyright Gilbert Ashley 17 July 2023
 # Contact: perceptronic@proton.me  Subject-line: iQalc
 
-# iq_misc version=1.79
+# iq_misc version=1.80
 
 # List of functions included here:
-# factorial gcf dec2ratio spow
-iqmisc="factorial gcf dec2ratio spow pmod_eucl div_eucl div_floor dot_1d mat2 "
+iqmisc="factorial gcf dec2ratio spow "
+iqmisc2="pmod_eucl div_eucl div_floor dot_1d mat2 "
 
 ### Miscellaneous functions currently unused elsewhere
 
@@ -161,18 +161,20 @@ spow() { bn_scale=$defprec
 #  return m;
 #}
 # positive Euclidian Modulo
-pmod_eucl() { case $1 in -s*) shift ;;esac   # scale is unused and ignored
+pmod_eucl() { #case $1 in -s*) shift ;;esac   # scale is unused and ignored
+    case $1 in -s*) pmscale=${1#*-s} ; shift ;; *) pmscale=0 ;; esac
     a=$1 b=$2
-    #case $b in 0) return 1 ;; -1) return 0 ;; esac
-    m=$(div -s0 $a % $b)
+    case $b in 0|0.0) echo "->pmod_eucl: Division by Zero" >&2 ; return 1 ;; -1|-1.0) echo 0 ; return ;; esac
+    m=$(div -s$pmscale $a % $b)
     case $m in -*)
-            case $b in -*) m=$( add -s0 $m - $b ) ;;
-                *) m=$( add -s0 $m + $b )
+            case $b in -*) m=$( add -s$pmscale $m - $b ) ;;
+                *) m=$( add -s$pmscale $m + $b )
             esac ;;
     esac
     echo $m
 }
 
+# Euclidian division
 div_eucl() { #case $1 in -s*) shift ;;esac   # scale is unused and ignored
     case $1 in -s*) descale=${1#*-s} ; shift ;; *) descale=0 ;; esac
     a=$1 b=$2
@@ -186,7 +188,8 @@ div_eucl() { #case $1 in -s*) shift ;;esac   # scale is unused and ignored
     echo $q $r
 }
 
-div_floor () { #case $1 in -s*) shift ;;esac   # scale is unused and ignored
+# floored division
+div_floor () { 
     case $1 in -s*) dfscale=${1#*-s} ; shift ;; *) dfscale=0 ;; esac
     a=$1 b=$2
     divmod="$( div -s$dfscale $a qr $b )"
@@ -204,7 +207,7 @@ div_floor () { #case $1 in -s*) shift ;;esac   # scale is unused and ignored
 }
 
 # dot - multiplies 2 series of numbers by each other, 
-# and sum the products. An additional value can be
+# and sums the products. An additional value can be
 # included in the sum. So this can be used for SOP,
 # fused-multiply-add and 1D matrix multiplication
 # or one-dimensional dot product

@@ -2,10 +2,10 @@
 
 # This file is part of the IQ4sh precision calculator
 
-# Copyright Gilbert Ashley 8 June 2023
+# Copyright Gilbert Ashley 17 July 2023
 # Contact: OldGringo9876@gmx.de  Subject-line: IQ4sh
 
-# iq_trig_version=1.79
+# iq_trig_version=1.80
 
 # trig functions moved here from iq+
 # sin cos tan - fixed wrong outputs for some fringe cases
@@ -16,8 +16,8 @@
 # List of functions included here:
 # Main functions: sin cos tan atan atan2 rad2deg deg2rad
 
-iqtrig="sin cos tan atan atan2 rad2deg deg2rad "
-
+iqtrig="sin cos tan atan atan2 "
+iqtrigutil="rad2deg deg2rad is_near_int "
 ### Trigonometry functions
 
 trig_help() {
@@ -28,21 +28,21 @@ trig_help() {
 # depends on: 'sin14' 'cos14' 'deg2rad' 'is_near_int' 'tsst' 'add'
 # used by 'tan'
 sin_help() {
-echo "    'sin' usage: 'sin [-s?] [-rad -irad] angle'
+echo "    'sin' usage: 'sin [-s?] [-irad] angle'
     
     Returns the Sine of an 'angle', which
     can be in degrees (default) or in radians 
-    Use the '-rad' or '-irad' option to input radians
+    Use the '-irad' option to input radians
     Accuracy: approximately 12 decimal places
     Example usage: 'sin -s6 91.35' = 0.999722
     Example usage: 'sin -s12 23.565' = 0.399789183758
-    Example usage: 'sin -s12 -rad 0.411286838232' = 0.399789183757
+    Example usage: 'sin -s12 -irad 0.411286838232' = 0.399789183757
     "
 }
-sin(){ out_scale=$defprec inrad=0 outrad=0
+sin(){ out_scale=$defprec irad=0
     case $1 in -s*) out_scale=${1#*-s} ; shift ;; ''|'-h') sin_help >&2 ; return ;; esac 
     # process other arguments
-    case $1 in -rad|-irad) irad=1 ; shift ;;esac
+    case $1 in -irad) irad=1 ; shift ;;esac
     # raise intermediate scale to retain accuracy
     scale_sin=$((out_scale+2))
     # get the input
@@ -106,21 +106,21 @@ sin(){ out_scale=$defprec inrad=0 outrad=0
 # depends on: 'cos14' 'sin14' 'deg2rad' 'is_near_int' 'add' 'tsst'
 # used by: 'tan'
 cos_help() {
-echo "    'cos' usage: 'cos [-s?] [-rad -irad] angle'
+echo "    'cos' usage: 'cos [-s?] [-irad] angle'
     
     Returns the Cosine of an 'angle', which
     can be in degrees (default) or radians
-    Use the '-rad' or '-irad' option to input radians
+    Use the '-irad' option to input radians
     Accuracy: approximately 12 decimal places
     Example usage: 'cos -s6 28.573' = 0.878208
     Example usage: 'cos -s12 98.827' = -0.153451510933
-    Example usage: 'cos -s8 -rad 0.7417649320' = 0.01286791
+    Example usage: 'cos -s8 -irad 0.7417649320' = 0.73727733
     "
 }
 cos(){ out_scale=$defprec irad=0
     case $1 in -s*) out_scale=${1#*-s} ; shift ;; ''|'-h') cos_help >&2 ; return ;;esac
     # process other input options
-    case $1 in -rad|-irad) irad=1 ; shift ;;esac
+    case $1 in -irad) irad=1 ; shift ;;esac
     # raise intermediate scale to retain accuracy
     scale_cos=$((out_scale+2))
     # get the input
@@ -180,22 +180,22 @@ cos(){ out_scale=$defprec irad=0
 # tan - Calcualate the tangent of an angle
 # depends on: 'sin' 'cos' 'is_near_int' 'rad2deg' 'div' 'tsst' 'add'
 tan_help() {
-echo "    'tan' usage: 'tan [-s?] [-rad -irad] angle'
+echo "    'tan' usage: 'tan [-s?] [-irad] angle'
     
     Returns the Tangent of an 'angle', which
     can be in degress (default) or radians
-    Use the '-rad' or '-irad' option to input radians
+    Use the '-irad' option to input radians
     Accuracy: ~12 decimal places
     Example usage: 'tan -s6 28.573' = 0.544606
     Example usage: 'tan -s6 0.741764' = 0.012946
-    Example usage: 'tan -s6 -rad 0.74176' = 0.015992
+    Example usage: 'tan -s12 -irad 0.7504915783' = 0.932515086030
     "
 }
-tan() { out_scale=$defprec inrad=0
+tan() { out_scale=$defprec irad=0
     case $1 in -s*) out_scale=${1#*-s} ; shift ;; ''|'-h') tan_help >&2 ; return ;; esac
     # process other input options
-    case $1 in -rad|-irad) inrad=1 ; shift ;;esac
-    # raise intermediate scale to retain accuracyfile:///home/amigo/Downloads/fp_bash/iq4sh/trig-archive/atan-002.sh
+    case $1 in -irad) irad=1 ; shift ;;esac
+    # raise intermediate scale to retain accuracy
     scale_tan=$((out_scale+2))
     # get the input
     x_tan=$1
@@ -205,8 +205,7 @@ tan() { out_scale=$defprec inrad=0
         *) tan_neg='' ;; 
     esac
     # convert input from radians, if chosen
-    # using 'inrad' here because sin/cos use 'irad'
-    if [ '1' = "$inrad" ] ; then
+    if [ '1' = "$irad" ] ; then
         x_tan=$( rad2deg -s$scale_tan $x_tan )
     fi
     # reduce large x to 360 or less
@@ -245,21 +244,21 @@ tan() { out_scale=$defprec inrad=0
 # pade[3/4] approximation of atan in degrees from
 # Pade_approximants_for_inverse_trigonometric_functi.pdf
 atan_help() {
-echo "    'atan' usage: 'atan [-s?] [-rad -orad] tangent'
+echo "    'atan' usage: 'atan [-s?] [-orad] tangent'
     
     Returns the Arctangent or inverse of a Tangent
     By default, outputs are in degrees
-    Use the '-rad' or '-orad' option to output radians
+    Use the '-orad' option to output radians
     Accuracy: ~12 decimal places (more in very small x)
     Example usage: 'atan -s6 0.544606' = 28.572976
     Example usage: 'atan -s6 0.012946' = 0.741709
-    Example usage: 'atan -s6 -rad 0.015992' = 0.741733
+    Example usage: 'atan -s12 -orad 0.015992' = 0.015990636922
     "
 }
 atan() { out_scale=$defprec orad=0 reduc1=0 reduc2=0
     case $1 in -s*) out_scale=${1#*-s} ; shift ;; ''|'-h') atan_help >&2 ; return ;; esac
     # process other input options
-    case $1 in -rad|-orad) orad=1 ; shift ;;esac
+    case $1 in -orad) orad=1 ; shift ;;esac
     # raise intermediate scale to retain accuracy
     scale_tan=$((out_scale+4))
     # pre-calculated values for pi/2, pi/4
@@ -365,25 +364,27 @@ atan() { out_scale=$defprec orad=0 reduc1=0 reduc2=0
 # atan2 -  2-input-coordinate atan returns arctangent from any quadrant
 # depends on: 'atan' 'deg2rad' 'add' 'div' 'tsst'
 atan2_help() {
-echo "    'atan2' usage: 'atan2 [-s?] [-rad -orad] [-yx] X Y'
+echo "    'atan2' usage: 'atan2 [-s?] [-orad] X Y'
     
     Returns the Arctangent of a 2-coordinate position
     'X' and 'Y' are planar (Cartesian) coordinates
     By default, outputs are in degrees
-    Use the '-rad' or '-orad' option to output radians
-    To change input order to Y X,  use the '-yx' option
+    Use the '-orad' option to output radians
+    To change input order to Y X,  use the '-yx' option:
+    'atan2' usage: 'atan2 [-s?] [-orad] -yx Y X'
+    
     Accuracy: ~10 decimal places
     Example usage: 'atan2 -s10 3.722 3.425' = 42.6203916006
     Example usage: 'atan2 -s10 20.435 30.152' = 55.8732180030
     Example usage: 'atan2 -s10 -orad 20.435 30.152' = 0.9751716178
-    Example usage: 'atan2 -s10 -rad -yx 30.152 20.435' = 0.9751716178
+    Example usage: 'atan2 -s10 -orad -yx 30.152 20.435' = 0.9751716178
     "
 }
 atan2() { out_scale=$defprec orad=0 use_yx=0
     case $1 in -s*) out_scale=${1#*-s} ; shift ;; ''|'-h') atan2_help >&2 ; return ;;esac
     # process other arguments
     while [ $1 ] ; do
-        case $1 in -rad|-orad) orad=1 ; shift ;; -yx) use_yx=1 ; shift ;; *) break ;;esac
+        case $1 in -orad) orad=1 ; shift ;; -yx) use_yx=1 ; shift ;; *) break ;;esac
     done
     case $2 in '') echo "-->atan2: 2 input coordinates X and Y required" >&2 ; return 1 ;;esac
     # raise intermediate scale to retain accuracy

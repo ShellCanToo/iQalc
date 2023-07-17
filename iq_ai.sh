@@ -3,10 +3,10 @@
 # This file is part of the iQalc/IQ precision calculator
 # Neural-network activation functions for the iq/iq+ calculator
 
-# Copyright Gilbert Ashley 5 July 2023
+# Copyright Gilbert Ashley 17 July 2023
 # Contact:perceptronic@proton.me  Subject-line: iQalc
 
-# iq_ai_funcs version=1.79
+# iq_ai_funcs version=1.80
 
 # List of functions and derivative functions included here:
 # logistic functions: tanh_real, tanh_pade, tanh_d1, tanh_d2, sigmoid_real, sigmoid_tanh, sigmoid_d1, sigmoid_d2
