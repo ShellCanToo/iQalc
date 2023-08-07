@@ -1,16 +1,16 @@
 #!/bin/sh
 # IQ+/iq+ - Extended version of the iqalc/iq calculator
 
-# Copyright Gilbert Ashley 17 July 2023
+# Copyright Gilbert Ashley 6 August 2023
 # Contact:perceptronic@proton.me  Subject-line: iQalc
 
 # Main functions: pow, nroot, logx, exp, ipow, epow
 # Other functions: fpow, getConst, iqXhelp
 
 # disable some style checks and un-helpful suggestions
-# shellcheck disable=SC2034,SC2086,SC2295,SC2004,SC1090,SC1091,SC2123,SC2317
+# shellcheck disable=SC2034,SC2086,SC2295,SC2004,SC1090,SC1091,SC2123,SC2317,SC2046
 
-iqplusversion=1.80
+iqplusversion=1.81
 
 # trigonometry functions moved to iq_trig
 # factorial gcf dec2ratio - moved to iq_misc
@@ -120,7 +120,7 @@ pow() { scale_pow=$defprec
                 pres=$( exp -s$pmed_scale $pprod )
                 [ $scale_pow -gt 6 ] && scale_pow=$(( scale_pow -3 ))
             else
-                echo "-->pow: 'ln(base) * exponent' must be <15. Your 'ln($pbase) * $expx' = ${pprod%.*}+ \n" >&2 
+                echo "-->pow: 'ln(base) * exponent' must be <15" >&2 
                 pow_help >&2 ; return 1
             fi
         ;;
@@ -501,8 +501,8 @@ echo "    'exp' usage: 'exp [-s?] exponent'
     'e^x' - raises Euler's number 'e' to a given power 'x' (e^x),
     Example: 'exp -s15 3.6' returns: '36.598234443677978'
     Example: 'exp -s8 1.134' returns: '3.10806392'
-    Accurate to ~12 places where X<19.0, ~6 places where X=19-29,
-    and ~3 places where X=29-35. 
+    
+    Accurate to ~12 places where X<19.0
     "
 }
 exp() { escale=$defprec
@@ -510,10 +510,11 @@ exp() { escale=$defprec
     case $1 in '') exp_help >&2 ; return 1 ;; *) expx=$1 ;;esac
     expneg=''
     case $expx in '-'*) expneg='-'  expx=${expx#*-} ;;esac
+    case $expx in '.'*) expx='0'$expx ;;esac
     
     # special cases for early exit
     case ${expneg}${expx} in
-        0|0.0) echo 1.0 ; return ;;
+        0|.0|0.0) echo 1.0 ; return ;;
         1|1.0) getConst E $escale ; return ;;
         -1|-1.0) div -s$escale 1 / $( getConst E $escale ) ; return ;;
     esac
@@ -538,10 +539,6 @@ exp() { escale=$defprec
     # using limits of 1.1 gives us ~12 places of precision
     if tsst $expx -gt 1.1 ; then
         pad='1' ; cnt=0
-        #while tsst $expx -gt 1.1 ; do
-        #    expx=$( add $expx - $ln10 ) 
-        #    pad=$pad'0'
-        #done
         qr=$( div -s$e2scale $expx qr $ln10 )
         mag=${qr% *} expx=${qr#*' '}
         while [ $cnt -lt ${mag%.*} ] ; do pad=$pad'0' ; cnt=$((cnt+1))  ; done
@@ -551,7 +548,7 @@ exp() { escale=$defprec
             *) mul -s$escale $expout $pad ;; 
         esac
     else
-        case $expneg in '-') div -s$escale 1 /$( exp_z -s$e2scale $expx )  ;; 
+        case $expneg in '-') div -s$escale 1 / $( exp_z -s$e2scale $expx )  ;; 
             *) exp_z -s$escale $expx ;;
         esac
     fi
