@@ -1,17 +1,19 @@
-  #!/bin/sh
+#!/bin/sh
 
 # This file is part of the IQ4sh precision calculator
 
-# Copyright Gilbert Ashley 17 July 2023
+# Copyright Gilbert Ashley 6 August 2023
 # Contact: OldGringo9876@gmx.de  Subject-line: IQ4sh
 
-# iq_trig_version=1.80
+# iq_trig_version=1.81
+# shellcheck disable=SC2034,SC2154,SC2086
 
 # trig functions moved here from iq+
 # sin cos tan - fixed wrong outputs for some fringe cases
 # renamed rdns2dgrs/dgrs2rdns as rad2deg/deg2rad
 # new functions - 'atan' and 'atan2' calculate arctangents in degrees/radians
 # new function - is_near_int determines if input is close to being an integer
+# cos - correct output for cos(0)
 
 # List of functions included here:
 # Main functions: sin cos tan atan atan2 rad2deg deg2rad
@@ -143,12 +145,12 @@ cos(){ out_scale=$defprec irad=0
             60.0*|59.9*|300.0*|299.9*) is_near_int -s$out_scale $x_cos && { echo '0.5' ; return; } ;;
             120|120.0|240|240.0) echo '-0.5' ; return ;;
             120.0*|119.9*|240.0*|239.9*) is_near_int -s$out_scale $x_cos && { echo '-0.5' ; return; } ;; 
-            0|0.0|90|90.0|270|270.0) echo '0.0' ; return ;;
-            0.0*|90.0*|89.9*|270.0*|269.9*) is_near_int -s$out_scale $x_cos && { echo '0.0' ; return; } ;;
+            90|90.0|270|270.0) echo '0.0' ; return ;;
+            90.0*|89.9*|270.0*|269.9*) is_near_int -s$out_scale $x_cos && { echo '0.0' ; return; } ;;
             180|180.0) echo '-1.0' ; return ;;
             180.0*|179.*) is_near_int -s$out_scale $x_cos && { echo '-1.0' ; return; } ;;
-            360|360.0) echo '1.0' ; return ;;
-            360.0*|359.9*) is_near_int -s$out_scale $x_cos && { echo '1.0' ; return; } ;;
+            0|0.0|360|360.0) echo '1.0' ; return ;;
+            0.0*|360.0*|359.9*) is_near_int -s$out_scale $x_cos && { echo '1.0' ; return; } ;;
     esac
     # determine sign and reduce x to < 90
     if tsst $x_cos -gt 270 ; then
@@ -236,7 +238,6 @@ tan() { out_scale=$defprec irad=0
     echo ${tan_neg}${out_tan#*-}
 } ## tan2
 ## out_scale= scale_tan= x_tan= tan_neg= si= co= inrad= out_tan=
-
 
 ## atan - arctan reverts a tangent to an angle
 # depends on: 'rad2deg' 'is_near_int' 'add' 'mul' 'div' 'tsst'

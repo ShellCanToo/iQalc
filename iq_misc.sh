@@ -1,15 +1,17 @@
- #!/bin/sh
+#!/bin/sh
 
-# This file is part of the iQalc/IQ precision calculator
+# 'iq_misc.sh' is a Module of the iQalc/IQ precision calculator
+# It is not an executable program
 
-# Copyright Gilbert Ashley 17 July 2023
+# Copyright Gilbert Ashley 6 August 2023
 # Contact: perceptronic@proton.me  Subject-line: iQalc
 
-# iq_misc version=1.80
+# iq_misc version=1.81
+
+# shellcheck disable=SC2034,SC2086,SC2004,SC2154,SC2068,SC2046
 
 # List of functions included here:
-iqmisc="factorial gcf dec2ratio spow "
-iqmisc2="pmod_eucl div_eucl div_floor dot_1d mat2 "
+iqmisc="factorial gcf dec2ratio spow pmod_eucl div_floor dot_1d mat2 "
 
 ### Miscellaneous functions currently unused elsewhere
 
@@ -161,10 +163,11 @@ spow() { bn_scale=$defprec
 #  return m;
 #}
 # positive Euclidian Modulo
-pmod_eucl() { #case $1 in -s*) shift ;;esac   # scale is unused and ignored
-    case $1 in -s*) pmscale=${1#*-s} ; shift ;; *) pmscale=0 ;; esac
+pmod_eucl() { case $1 in -s*) pmscale=${1#*-s} ; shift ;; *) pmscale=0 ;; esac
     a=$1 b=$2
-    case $b in 0|0.0) echo "->pmod_eucl: Division by Zero" >&2 ; return 1 ;; -1|-1.0) echo 0 ; return ;; esac
+    case $b in 0|0.0) echo "->pmod_eucl: Division by Zero" >&2 ; return 1 ;; 
+        -1|-1.0) echo 0 ; return ;; 
+    esac
     m=$(div -s$pmscale $a % $b)
     case $m in -*)
             case $b in -*) m=$( add -s$pmscale $m - $b ) ;;
@@ -174,27 +177,18 @@ pmod_eucl() { #case $1 in -s*) shift ;;esac   # scale is unused and ignored
     echo $m
 }
 
-# Euclidian division
-div_eucl() { #case $1 in -s*) shift ;;esac   # scale is unused and ignored
-    case $1 in -s*) descale=${1#*-s} ; shift ;; *) descale=0 ;; esac
-    a=$1 b=$2
-    divmod="$( div -s$descale $a qr $b )"
-    q=${divmod%' '*} r=${divmod#*' '}
-    case $r in 
-        -*) q=$(add -s$descale $q - 1 ) r=$(add -s$descale $r + $b ) ;;
-        *)  q=$(add -s$descale $q + 1 ) r=$(add -s$descale $r - $b ) ;;
-    esac
-    #echo $q
-    echo $q $r
-}
 
 # floored division
 div_floor () { 
     case $1 in -s*) dfscale=${1#*-s} ; shift ;; *) dfscale=0 ;; esac
-    a=$1 b=$2
+    a=$1 
+    case $2 in '/'|'//') shift ;; esac
+    b=$2
+    case $b in 0|0.0) echo "->div_floor: Division by Zero" >&2 ; return 1 ;; 
+        -1|-1.0) echo 0 ; return ;; 
+    esac
     divmod="$( div -s$dfscale $a qr $b )"
     q=${divmod%' '*} r=${divmod#*' '}
-    
     rsig=$(cmp3w $r 0) bsig=$(cmp3w $b 0)
     # combine signals to form patterns for case
     # no '>>' '<<'  # yes '=>' '=<' '<>' '><'
@@ -203,7 +197,8 @@ div_floor () {
         *)  q=$( add -s$dfscale $q - 1 )
             r=$( add -s$dfscale $r + $b ) ;;
     esac
-    echo $q $r
+    #echo $q $r
+    echo $q
 }
 
 # dot - multiplies 2 series of numbers by each other, 
