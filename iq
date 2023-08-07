@@ -1,7 +1,7 @@
 #!/bin/sh
 # - iQalc or 'iq' is a precision decimal calculator for the shell
 
-# Copyright Gilbert Ashley 17 July 2023
+# Copyright Gilbert Ashley 6 August 2023
 # Contact: perceptronic@proton.me  Subject-line: iQalc
 
 # Operations supported: addition, subtraction, multiplication, division,
@@ -13,24 +13,12 @@
 # disable some style checks from shellcheck
 # shellcheck disable=SC2086,SC2004,SC2295,SC2123,SC2068,SC2145,SC2048,SC2154,SC2015,SC1090,SC1091,SC2181
 
-# new Interactive Mode for use like other common CLI calculators
-# vets all commanads and allows loading extra functions as modules
-# new function: validate_inputs - check for valid and appropriate operators and inputs
-# complete re-write of input validation, reducing in-loop testing in add, mul and div
-# add - 5 less case patterns/structures; mul - 6 less
-# div - speedup of fraction calculation (see qlimit)
-# div - rewrote calculation of modulo which agrees with most on-line
-#       modulo calculators, as well as python(%) & Java floorMod
-# div - add 'qr' operator, which returns both quotient and remainder
-# mul - check at top if any input = 0, and return answer zero
-# corrected cases of constructs like '$var1$var2' -use ${var1}$var2
-# spow moved to iq_misc
-# round new function performs ceiling, floor, half-up or half-even rounding and truncation(towards-zero rounding)
-# mul  div - implemented rounding option
-# add still does no rounding, but one can do this: iq round hfup -s4 $(iq add -s5 1.23456 2.0 )
-# added SC2154,SC2015,SC1090,SC1091,SC2181
+# add, mul, div, round - clean-up of help and examples
+# iqhelp - bring general help up-to-date
+# Execution Block - add PWD to PATH when loading modules
+# list - make function lists narrower
 
-iqversion=1.80
+iqversion=1.81
 
 # default precision
 defprec=${defprec:-5}
@@ -107,8 +95,9 @@ cmp3w() { case $1 in ''|-h|-s*) cmp3w_help >&2  ; return 1 ;;esac
 # depends on: 'cmp3w' 'validate_inputs'
 # adds or subtracts large numbers in chunks of 16 digits
 add_help() {
-echo "  'add' usage: 'add [-s?] num1 [+-] num2 ...' 
-  
+echo "  'add' usage: 'add [-s?] num1 [+-] num2 ... numN' 
+    
+    Numbers can be any size, integer or decimal.
     If scale is omitted or '-soff', no truncation is done
     Example: 'add 2.340876 + 1827.749048' = 1830.089924
     Example: 'add 2.340876 - 1827.749048' = -1825.408172
@@ -121,6 +110,10 @@ echo "  'add' usage: 'add [-s?] num1 [+-] num2 ...'
     
     When summing a series of inputs, results are only 
     truncated after the last calculation.
+    
+    Operators are optional. 'add' accepts mixed signs
+    and operators: 
+    'add 6 -3 1 + -4 - -4', but not 'add 3 --2 +-6'.
   "
 }
 add(){ aprec=off
@@ -268,8 +261,9 @@ add(){ aprec=off
 # depends on 'add' 'validate_inputs' 'round'
 # for large numbers, multiplies in chunks of 9 digits
 mul_help() {
-echo "  'mul' usage: 'mul [-s?] [-r...] num1 [xX] num2 ...'
+echo "  'mul' usage: 'mul [-s?] [-r...] num1 [xX] num2 ... numN'
   
+    Numbers can be any size integer or decimal.
     If the scale option is omitted or set to off '-soff',
     no truncation or rounding of the result is done.
     Example: 'mul 2.340876445 x 1827.74904' = 4278.5346751073628
@@ -289,8 +283,8 @@ echo "  'mul' usage: 'mul [-s?] [-r...] num1 [xX] num2 ...'
     If the result is shorter than the given scale, then the
     answer is exact and no rounding or truncation is done.
     Results are only truncated or rounded after the final
-    calculation of a series of inputs.
-    
+    calculation of a series of inputs. Operators are
+    optional.
   "
 }
 mul(){ mprec=off rprec=$mprec
@@ -446,7 +440,7 @@ mul(){ mprec=off rprec=$mprec
 div_help() { 
 echo "  'div' usage: 'div [-s?] [-r..] num1 ( / % m qr ) num2'
     
-    Numbers can be any size integer or decimal
+    Numbers can be any size integer or decimal.
     'div' requires an operator: / % m or 'qr'
     Example: 'div -s8 3.52 / 1.4' = 2.51428571
     If not given, default scale ($defprec) is used:
@@ -454,23 +448,23 @@ echo "  'div' usage: 'div [-s?] [-r..] num1 ( / % m qr ) num2'
     Example: 'div -s0 3.52 / 1.4' = 2
     
     Remainder and Modulo operations:
-    div -s8 -3.52 / 1.4 = -2.51428571
+    'div -s8 -3.52 / 1.4' = -2.51428571 {normal division}
+    
     '%' returns the shell-and-C-style remainder
-    div -s2 -3.52 % 1.4 = -0.72
+    'div -s2 -3.52 % 1.4' = -0.72
     
     'm' returns the floored python-style modulo
-    div -s2 -3.52 m 1.4 = 0.68
+    'div -s2 -3.52 m 1.4' = 0.68
     
     'qr' returns both the quotient and remainder
-    div -s2 -3.52 qr 1.4 = -2.0 -0.72
+    'div -s2 -3.52 qr 1.4' = -2.0 -0.72
     
     The '-r...' option performs rounding of full division,
     where '...' is hfup(half-up), hfev(half_even), ceil or floor.
-    div -s20  -2.340876 / 17.749048         = -0.13188741165159956748
-    div -s17 -2.340876 / 17.749048          = -0.13188741165159956
-    div -s17 -rhfup  -2.340876 / 17.749048  = -0.13188741165159957
+    'div -s20  -2.340876 / 17.749048'         = -0.13188741165159956748
+    'div -s17 -2.340876 / 17.749048'          = -0.13188741165159956
+    'div -s17 -rhfup  -2.340876 / 17.749048'  = -0.13188741165159957
     No rounding is done when performing modulo operations.
-    
   "
 }
 div() { scale_div=$defprec
@@ -671,20 +665,22 @@ div() { scale_div=$defprec
 # scale_div= M= oprtr= D= M_sign= D_sign= Q_sign= M_int= D_int= M_frac= D_frac= mod= dvsr= Q_fracsize= Q_int= Q_frac=
 # qcnt= this_q= seed= divpad= last_intrm_P= fctr= intrm_P= punch= me= de= sane_mfrac= sane_dfrac= qlimit= rounding= Q=
 
-#round_help=" 'round' usage: round (ceil|floor|hup|hev) [-s?] decimal-number"
+## round
 round_help(){
 echo "  'round' usage: round (method) [-s?] decimal-number
   
   Where 'method' is 'ceil' 'flor' 'hfup' 'hfev' or 'trnc'. 
-  That is, ceiling, floor, half-up, half-even or truncation
+  That is, ceiling, floor, half-up, half-even or truncation,
   which is effectively toward-zero rounding.
   Note that 'method' comes before the '-s?' scale option.
   
   Example: 'round ceil -s0 4.001' returns '5'
-  Example: 'round floor -s2 -4.001' returns '-4.01'
-  Example: 'round hup -s2 4.005' returns '4.01'
-  Example: 'round hev -s9 0.9999999985' returns '0.999999998'
-  Example: 'round hev -s9 0.9999999995' returns '1.000000000'
+  Example: 'round flor -s2 -4.001' returns '-4.01'
+  Example: 'round hfup -s2 4.005' returns '4.01'
+  Example: 'round hfev -s9 0.9999999985' returns '0.999999998'
+  Example: 'round hfev -s9 0.9999999995' returns '1.000000000'
+  
+  Input must be at least 1 digit longer than requested scale.
   
   "
 }
@@ -772,7 +768,8 @@ round() { rnd_scale=$defprec
     esac
     pad=''
     echo $out
-}
+} ## round
+# rnd_scale= method= int= frac= sign= oldfrac= mask= lastchar= cnt= pad= char2round= out= signal=
 
 # as the name says, do nothing. For measuring startup latency, like this: 'time iq do_nothing
 do_nothing() { : ;} ## do_nothing
@@ -819,36 +816,30 @@ validate_inputs() { fun=$1 ; shift ; vscale=$1 ; shift
 # the general help for iq
 iqhelp() {
 echo "          IQ - Version $iqversion - Copyright 2023 Gilbert Ashley
-    Precision Decimal calculator for CLI, environment or scripts
+    Precision Decimal calculator for CLI or scripting
     
     Main functions/operators: | add + - | mul xX | div / % m qr |
     Comparison functions: | tsst -lt -le -eq -ge -gt -ne | cmp3w |
     
     To show usage, call a function with no argument or '-h':
     'add -h' shows: 'add' usage: 'add [-s?] num1 [+-] num2' ...
+    Items in '[]' are optional.
     'div -h': 'div' usage: 'div [-s?] num1 ( / % m qr ) num2' ...
-    Items in '[]' are optional. One item in '(...)' is required.
+    One item in '(...)' is required.
     
     Main functions use input format: 'func_name Num1 operator Num2'
-    Examples: 'add 2.47 + 3.24'  'mul 3.47 x 5.39' 'div 42.6 / 3.5'
+    Examples: 'add 2.47 + 3.24' 'mul 3.47 x 5.39' 'div 42.6 / 3.5'
     
     Inputs must be space-separated: 'add 2 + 3' not: 'add 2+3'.
-    Operators + - x X are optional, but 'div' requires 1 operator.
     iq does not evaluate expressions like: '( 3 + (4 x 5) )'
     
     Main functions have a scale option: '-s?', where '?' is
     the desired scale,  which must be a positive integer.
     If used, scale must be first parameter: 'mul -s6 3.46  5.83'
     Using '-s0' (zero) truncates answers to integer output.
+    Scale values mean Decimal places of fraction precision.
     
-    Used without scaling, 'add' and 'mul' output the full result.
-    'add' and 'mul' can work in series: mul 2 x 3 x 252.424 ...
-    but truncation is only done after the last calculation.
-    'add' accepts mixed signs/operators: 'add 6 -3 1 + -4 - -4',
-    but not 'add 3 --2 +-6'.
-    
-    Main and Comparison functions support Arbitrary Precision.
-    Scale values -s? mean Decimal places of fraction precision.
+    add, mul, div, tsst and cmp3w support Arbitrary Precision.
     For operations like powers, logs, roots, or trigonometry
     use the extended version of the calculator 'iq+'.
     "
@@ -863,11 +854,12 @@ list() {
     [ -n "$iqtrigutil" ] && echo " iq  trig utilities: "$iqtrigutil
     [ -n "$iqutil" ] && echo " iq  util functions: "$iqutil
     [ -n "$iqmisc" ] && echo " iq  misc functions: "$iqmisc
-    [ -n "$iqmisc2" ] && echo " iq  misc functions: "$iqmisc2
+    #[ -n "$iqmisc2" ] && echo " iq  misc functions: "$iqmisc2
     if [ -n "$iqaimain" ] ; then
-        echo " iq_ai  activations:"$iqaimain
-        echo " iq_ai  derivatives:"$iqaiderivs
-        echo " iq_ai experimental:"$iqai_experimental
+        echo " iq_ai  activations: "$iqaimain
+        echo " iq_ai  activations: "$iqaiother
+        echo " iq_ai  derivatives: "$iqaiderivs
+        echo " iq_ai  derivatives: "$iqaiderivs2
     fi
 }
 # help for Interactive Mode
@@ -922,15 +914,15 @@ if [ "1" != "$src" ] ; then
                     load) module=$opts okload='fail'
                         case $module in 
                             *iq+_*.sh) [ -f $module ] && src=1 . $module ; [ 0 = "$?" ] && okload=iq+ ;; 
-                            iq+) PATH=$old_path src=1 . iq+ ; [ 0 = "$?" ] && okload=iq+ ;;
+                            iq+) PATH=${PWD}:$old_path src=1 . iq+ ; [ 0 = "$?" ] && okload=iq+ ;;
                             *iq_trig_*.sh) [ -f $module ] && src=1 . $module ; [ 0 = "$?" ] && okload=trig ;;
-                            trig) PATH=$old_path src=1 . iq_trig.sh ; [ 0 = "$?" ] && okload=trig ;;
+                            trig) PATH=${PWD}:$old_path src=1 . iq_trig.sh ; [ 0 = "$?" ] && okload=trig ;;
                             *iq_ai_*.sh) [ -f $module ] && src=1 . $module ; [ 0 = "$?" ] && okload=ai ;;
-                            ai) PATH=$old_path src=1 . iq_ai.sh ; [ 0 = "$?" ] && okload=ai ;;
+                            ai) PATH=${PWD}:$old_path src=1 . iq_ai.sh ; [ 0 = "$?" ] && okload=ai ;;
                             *iq_misc_*.sh) [ -f $module ] && src=1 . $module ; [ 0 = "$?" ] && okload=misc ;;
-                            misc) PATH=$old_path src=1 . iq_misc.sh ; [ 0 = "$?" ] && okload=misc ;;
+                            misc) PATH=${PWD}:$old_path src=1 . iq_misc.sh ; [ 0 = "$?" ] && okload=misc ;;
                             *iq_util_*.sh) [ -f $module ] && src=1 . $module ; [ 0 = "$?" ] && okload=util ;;
-                            util) PATH=$old_path src=1 . iq_util.sh ; [ 0 = "$?" ] && okload=util ;;
+                            util) PATH=${PWD}:$old_path src=1 . iq_util.sh ; [ 0 = "$?" ] && okload=util ;;
                             
                         esac
                         PATH=''
@@ -952,7 +944,6 @@ if [ "1" != "$src" ] ; then
                         esac
                     ;;
                 esac
-                #echo
             done
         ;;
     esac
