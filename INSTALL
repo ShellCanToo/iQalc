@@ -1,0 +1,28 @@
+
+ The IQ Calculator doesn't really need installation. It
+ can be run from any local directory.
+ 
+ Acquire the needed files by cloning the Github repo:
+ git clone https://github.com/ShellCanToo/iQalc
+ Or download a zipped snapshot of the repo from:
+ https://github.com/ShellCanToo/iQalc/archive/refs/heads/main.zip
+ 
+        Local Mini Installation
+ Simply copy the top-level files you need into your PATH.
+ The main files 'iq' and 'iq+' should be made executable, using
+ the command 'chmod +x iq iq+'. 
+ 
+ The other 2 top-level files: 'iq_trig.sh' and 'iq_misc.sh' 
+ should also be copied to the same location as 'iq' and 'iq+',
+ but should remain non-executable. They are loadable modules 
+ used by 'iq' and 'iq+' and can not be run as 'programs'.
+ 'iq_util.sh' and 'iq_ai.sh' are optional modules. To use them,
+ copy into your PATH.
+ 
+ The directory 'man' contains man-pages for each program and
+ module, in both MarkDown and roff-formatted man-pages.
+ 
+ The directory 'math.h.sh' contains the IQ Calculator, in the
+ form of a 'header' for including IQ in shell scripts.
+ 
+ 
