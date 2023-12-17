@@ -1,7 +1,7 @@
 #!/bin/sh
 # - iQalc or 'iq' is a precision decimal calculator for the shell
 
-# Copyright Gilbert Ashley 7 August 2023
+# Copyright Gilbert Ashley 18 December 2023
 # Contact:  perceptronic@proton.me  Subject-line: iQalc
 
 # Operations supported: addition, subtraction, multiplication, division,
@@ -11,26 +11,25 @@
 # for a light-weight and easy way to add Decimal math operations
 # to any shell script. The differences between this header-style
 # math.h.sh and the normal iq executable program are: 
-# - No rounding is done and round() function is not included
 # - Has only minimal help info for each function
 # - Input-validation is disabled, but can be easily enabled and
 #     then uses a debug-version of validate_inputs
 # - Includes an optional debug-version of is_num for checking inputs
 # - Has no Execution Block -is not meant to be used as an executable
-# - Smaller Footprint of ~360 code-lines -excluding debug code,
-#     compared to ~560 lines of code in the full 'iq' program.
-# - Additional functions from the iq library can be added to scripts
 
 # See the bottom of the file for full instructions on using iq_math.h.sh 
 
 # disable some style checks from shellcheck
-# shellcheck disable=SC2086,SC2004,SC2295,SC2123
+# shellcheck disable=SC2086,SC2004,SC2123,SC2154,SC1090,SC1091,SC2181
 
-# iq_math.h.sh version=1.81
+# iq_math.h.sh version=1.82
 
 # default precision
 defprec=${defprec:-6}
 defzero='.0'
+
+# avoid all weirdness from zsh
+[ -n "$ZSH_VERSION" ] && emulate -LR sh
 
 # tsst  - numeric comparison of decimal numbers using shell 'test' syntax
 # depends on: 'cmp3w'
@@ -55,39 +54,51 @@ tsst() { case $1 in ''|-h|-s*) echo "$tsst_help" >&2 ; return 1 ;;esac
 # functions so it's commented here, and later only where it differs from here
 cmp3w_help="  'cmp3w' usage: 'cmp3w num1 num2'"
 cmp3w() { case $1 in ''|-h|-s*) echo "$cmp3w_help" >&2  ; return 1 ;;esac
-    # separate and store the signs of both inputs
-    case $1 in '-'*) c1sign='-' c1=${1#*-} ;; *) c1sign='+' c1=${1#*+} ;;esac
-    case $2 in '-'*) c2sign='-' c2=${2#*-} ;; *) c2sign='+' c2=${2#*+} ;;esac
-    # separate the integer and fractional parts
-    case $c1 in *.*) c1i=${c1%.*} c1f=${c1#*.} ;; *) c1i=$c1 c1f=0  ;;esac
-    case $c2 in *.*) c2i=${c2%.*} c2f=${c2#*.} ;; *) c2i=$c2 c2f=0 ;;esac
-    # default zeros
-    c1i=${c1i:-0} c1f=${c1f:-0} c2i=${c2i:-0} c2f=${c2f:-0}
-    # pad both integers and fractions until equal in length
-    while [ ${#c1i} -gt ${#c2i} ] ;do c2i='0'$c2i ;done 
-    while [ ${#c2i} -gt ${#c1i} ] ;do c1i='0'$c1i ;done
+    # juggle the positions of inputs by sign, so that we are
+    # comparing absolute values and can ignore signs below
+    case $1 in 
+        '-'*) case $2 in '-'*) c1=${2#*-} c2=${1#*-} ;;
+                *) c1=${1#*-} c2=${2#*-} ;; esac ;;
+        *) case $2 in '-'*) c1=${2#*-} c2=${1#*-} ;;
+                *) c1=${1#*-} c2=${2#*-} ;; esac ;;
+    esac
+    # separate integer and decimal parts
+    case $c1 in *.*) c1i=${c1%.*} c1f=${c1#*.} ;; *) c1i=$c1 c1f=  ;;esac
+    case $c2 in *.*) c2i=${c2%.*} c2f=${c2#*.} ;; *) c2i=$c2 c2f= ;;esac
+    # pad decimals to same length
     while [ ${#c1f} -gt ${#c2f} ] ;do c2f=$c2f'0' ;done 
     while [ ${#c2f} -gt ${#c1f} ] ;do c1f=$c1f'0' ;done
-    # recombine each number into an equi-length integer string
+    # remove all leading zeros from integers
+    while : ;do case $c1i in '0'*) c1i=${c1i#*?} ;; *) break ;;esac ;done
+    while : ;do case $c2i in '0'*) c2i=${c2i#*?} ;; *) break ;;esac ;done
+    # recombine integer and decimal parts without '.'
     c1=${c1i}$c1f c2=${c2i}$c2f
-    # if both inputs are >18-digits, work left-to-right in chunks of 18 chars
+    # if numbers are all zeros then equal
+    # if not same length, we have our answer
+    case ${c1}$c2 in 
+        *[!0]*) [ ${#c1} -gt ${#c2} ] && { echo '>' ; return ;}
+            [ ${#c1} -lt ${#c2} ] && { echo '<' ; return ;} ;;
+        *) echo '=' ; return ;;
+    esac
+    # numbers are the same length, if longer than 18-digits,
+    # work left-to-right in chunks of 18 chars
     while [ ${#c1} -gt 18 ] ;do
         cmpmsk1=${c1#*??????????????????} cmp1=${c1%"${cmpmsk1}"*} 
         cmpmsk2=${c2#*??????????????????} cmp2=${c2%"${cmpmsk2}"*}
         c1=$cmpmsk1 c2=$cmpmsk2
         # if both chunks are only zeros, skip to next chunk
-        case ${cmp1}$cmp2 in *[!0]*) : ;; *) continue ;; esac
-        # Check (signed) for '>' or '<' condition. Prepended 1's protect any embedded zeros
-        [ $c1sign'1'"$cmp1" -gt $c2sign'1'"$cmp2" ] && { echo '>' ; return ;}
-        [ $c1sign'1'"$cmp1" -lt $c2sign'1'"$cmp2" ] && { echo '<' ; return ;}
+        case ${cmp1}$cmp2 in *[!0]*) : ;; *) continue ;;esac
+        # Prepended 1's protect any embedded leading zeros
+        [ "1$cmp1" -gt "1$cmp2" ] && { echo '>' ; return ;}
+        [ "1$cmp1" -lt "1$cmp2" ] && { echo '<' ; return ;}
     done
-    # Do the same for inputs under 19 digits, or last chunks from above
-    case ${c1}$c2 in *[!0]*) : ;; *) echo '=' ; return ;; esac
-    [ $c1sign'1'"$c1" -gt $c2sign'1'"$c2" ] && { echo '>' ; return ;}
-    [ $c1sign'1'"$c1" -lt $c2sign'1'"$c2" ] && { echo '<' ; return ;}
+    # Same check for inputs under 19 digits or rest from above
+    case ${c1}$c2 in *[!0]*) : ;; *) echo '=' ; return ;;esac
+    [ "1$c1" -gt "1$c2" ] && { echo '>' ; return ;}
+    [ "1$c1" -lt "1$c2" ] && { echo '<' ; return ;}
     # if we get here the numbers are definitely equal
     echo '='
-} ## cmp3w
+} ## cmpn
 #c1= c1i= c1f= c1sign= c2= c2i= c2f= c2sign= cmp1= cmp2= cmpmsk1= cmpmsk2= 
 
 # add - add and/or subtract 2 or more decimal numbers
@@ -98,7 +109,7 @@ add(){ aprec=off
     case $1 in -s*) aprec=${1#*-s} ; shift ;; ''|-h) echo "$add_help" >&2 ; return 1 ;; esac
     
     # make sure we have only valid numbers and appropriate operators for add
-    #validate_inputs_debug add $aprec $* || { echo "->add: Invalid input in '-s$aprec' '$@'" >&2 ; return 1 ; }
+    #validate_inputs_debug add $aprec "$@" || { echo "->add: Invalid input in -s$aprec" "$@" >&2 ; return 1 ; }
     
     # initial sum is the first input
     r_add=$1 ; shift
@@ -112,29 +123,31 @@ add(){ aprec=off
         case $r_add in -*) rsign='-' r_add=${r_add#*-} ;; *) rsign='+' r_add=${r_add#*+} ;;esac
         case $anxt in -*) anxtsign='-' anxt=${anxt#*-} ;; *) anxtsign='+' anxt=${anxt#*+} ;;esac
         # separate the integer and fraction parts of both numbers -dont allow single or trailing dot
-        case $r_add in .*) rint=0 rfrac=${r_add#*.} ;; *.*) rint=${r_add%.*} rfrac=${r_add#*.} ;;
-            *) rint=$r_add rfrac=0 ;;esac
-        case $anxt in .*) nint=0 nfrac=${anxt#*.} ;; *.*) nint=${anxt%.*} nfrac=${anxt#*.} ;;
-            *) nint=$anxt nfrac=0 ;;esac
+        case $r_add in *.*) rint=${r_add%.*} rfrac=${r_add#*.} ;; *) rint=$r_add rfrac='' ;;esac
+        case $anxt in *.*) nint=${anxt%.*} nfrac=${anxt#*.} ;; *) nint=$anxt nfrac='' ;;esac
             
         # pad fractions till equal-length = 'write one number above the other, aligning the decimal points'
         while [ ${#rfrac} -lt ${#nfrac} ] ;do rfrac=$rfrac'0' ;done
         while [ ${#nfrac} -lt ${#rfrac} ] ;do nfrac=$nfrac'0' ;done
         # get the size of the fraction after padding them
         afsize=${#rfrac}
-        # front-pad integers till equal-length for accurate chunking.
-        # This also means we are sending pre-formatted numbers to cmp3w
-        while [ ${#rint} -lt ${#nint} ] ;do rint='0'$rint ;done
-        while [ ${#nint} -lt ${#rint} ] ;do nint='0'$nint ;done
-        # when an operator is used we need this step to handle these forms: 'a + -b', 'a - -b', 'a - +b'
-        [ -n "$aoprtr" ] && case ${aoprtr}${anxtsign} in '++'|'--') anxtsign='+' ;; '+-'|'-+') anxtsign='-' ;;esac 
-        # put _larger_ number first for an easier work-flow -we've pre-padded so this is fast
-        case $( cmp3w '1'${rint}$rfrac '1'${nint}$nfrac ) in '<')  swpint=$rint swpfrac=$rfrac swpsign=$rsign 
-            rint=$nint rfrac=$nfrac rsign=$anxtsign nint=$swpint nfrac=$swpfrac anxtsign=$swpsign ;;esac
-        # the sign of the result, rsign, is the sign of the greater number(absolute value)
+        # remove any leading zeros from integers
+        while : ;do case $rint in '0'*) rint=${rint#*?} ;; *) break ;;esac ;done
+        while : ;do case $nint in '0'*) nint=${nint#*?} ;; *) break ;;esac ;done
         
+        # when an operator is used we need this step to handle these forms: 'a + -b', 'a - -b', 'a - +b'
+        [ -n "$aoprtr" ] && case ${aoprtr}${anxtsign} in '++'|'--') anxtsign='+' ;; '+-'|'-+') anxtsign='-' ;;esac
+        
+        # put greater absolute value first for an easier work-flow
+        tsst ${rint}$rfrac -lt ${nint}$nfrac && { swpint=$rint swpfrac=$rfrac swpsign=$rsign 
+            rint=$nint rfrac=$nfrac rsign=$anxtsign nint=$swpint nfrac=$swpfrac anxtsign=$swpsign ;}
+            
         # find the real operation we will be performing
         case ${rsign}${anxtsign} in '+-'|'-+') aoprtr='-' ;; *) aoprtr='+' ;;esac
+        
+        # front-pad integers till equal-length for chunking
+        while [ ${#rint} -lt ${#nint} ] ;do rint='0'$rint ;done
+        while [ ${#nint} -lt ${#rint} ] ;do nint='0'$nint ;done
         
         # assign recombined values to A and B, and recycle r_add
         A=${rint}$rfrac B=${nint}$nfrac r_add='' 
@@ -144,8 +157,8 @@ add(){ aprec=off
             # protect embedded 0's in chunks with leading 1's. This also
             # allows to easily check if a carry is triggered
             while [ ${#A} -gt 16 ] ;do
-                admsk1=${A%????????????????*} Achnk='1'${A#*$admsk1} A=$admsk1    
-                admsk2=${B%????????????????*} Bchnk='1'${B#*$admsk2} B=$admsk2
+                admsk1=${A%????????????????*} Achnk='1'${A#*"$admsk1"} A=$admsk1    
+                admsk2=${B%????????????????*} Bchnk='1'${B#*"$admsk2"} B=$admsk2
                 adsub=$(( $Achnk + $Bchnk + $acry )) 
                 # If result begins with '3', there was a carry
                 case $adsub in 3*) acry=1 ;; *) acry=0 ;;esac
@@ -169,20 +182,18 @@ add(){ aprec=off
                 A='1'$A B='1'$B
                 r_add=$(( $A - $B )) 
             else
-                # subtract by chunks - first char of result is a signal for borrow
+                # subtract by chunking from right to left
                 adsub=0  acry=0
-                # For subtraction, prepending 1's doesn't help us. We'd have to detect
-                # the length of the result for borrow detection and decide whether
-                # or not to remove the first digit of result. Using leading '3' and '1'
-                # makes detection easy and the leading digit of result is always removed
+                # Using leading '3' and '1' makes borrow detection easy
                 while [ ${#A} -ge 17 ] ;do
-                    admsk1=${A%?????????????????*}  Achnk='3'${A#*$admsk1}  A=$admsk1
-                    admsk2=${B%?????????????????*}  Bchnk='1'${B#*$admsk2}  B=$admsk2
+                    admsk1=${A%?????????????????*}  Achnk='3'${A#*"$admsk1"}  A=$admsk1
+                    admsk2=${B%?????????????????*}  Bchnk='1'${B#*"$admsk2"}  B=$admsk2
                     [ "$acry" = 1 ] && { Bchnk=$(( $Bchnk + 1 ))  acry=0 ;}
                     adsub=$(( $Achnk - $Bchnk ))
                     # prepending 3 and 1 to the numbers above provides
                     # a borrow/carry signal in the first digit from the result
-                    # if adsub begins with '2' no carrow/borrow was triggered
+                    # if adsub begins with '2' no borrow was needed
+                    # if adsub begins with '1' trigger the borrow 
                     case $adsub in 1*) acry=1 ;;esac
                     # the leading 3/1 combination assures a constant result length
                     # so we don't have ask whether the result is shorter
@@ -208,7 +219,7 @@ add(){ aprec=off
         # separate the fraction from the result, working right-to-left
         adcnt=0   ofrac=''
         while [ $adcnt -lt $afsize ] ;do 
-            admsk1=${r_add%?*} ofrac=${r_add#$admsk1*}$ofrac r_add=$admsk1 adcnt=$((adcnt+1))
+            admsk1=${r_add%?*} ofrac=${r_add#"$admsk1"*}$ofrac r_add=$admsk1 adcnt=$((adcnt+1))
         done
         # trim leading zeros, # dont leave '-' sign if answer is 0
         while : ;do case $r_add in '0'?*) r_add=${r_add#*?} ;; *) break ;;esac ;done
@@ -225,8 +236,8 @@ add(){ aprec=off
         0) echo ${r_add%.*} ;; off) echo $r_add ;; 
         *)  ofrac=${r_add#*.}
             while [ ${#ofrac} -gt $aprec ] ;do ofrac=${ofrac%?*} ;done
-            # remove trailing zeros ??
-            # while : ; do  case $ofrac in *?0) ofrac=${ofrac%?*} ;; *) break ;;esac ;done
+            # remove trailing zeros, except one
+            while : ; do  case $ofrac in *?0) ofrac=${ofrac%?*} ;; *) break ;;esac ;done
             echo ${r_add%.*}'.'$ofrac ;;
     esac
     # sanitize exit variables
@@ -238,15 +249,15 @@ add(){ aprec=off
 # mul - multiply 2 or more decimal numbers
 # depends on 'add'
 # for large numbers, multiplies in chunks of 9 digits
-mul_help="  'mul' usage: 'mul [-s?] num1 [xX] num2 ...'"
-mul(){ mprec=off
-    case $1 in -s*) mprec=${1#*-s} ; shift ;; ''|-h) echo "$mul_help" >&2 ; return 1 ;;esac
+mul_help="  'mul' usage: 'mul [-s?] [-r...] num1 [xX] num2 ...'"
+mul(){ mprec=off rprec=$mprec
+    case $1 in -s*) mprec=${1#*-s} rprec=$mprec ; shift ;; ''|-h) echo $mul_help >&2 ; return 1 ;;esac
+    case $1 in -r*) rnd=${1#*-r} rprec=$mprec ; [ "$rprec" != off ] && mprec=$((mprec+1)) ; shift ;;esac
+    [ "$mprec" = 0 ] && defzero=''
     
     # make sure we have only valid numbers and appropriate operators for mul
-    #validate_inputs_debug mul $mprec $@ || { echo "->mul: Invalid input in '-s$mprec' '$@'" >&2 ; return 1 ; }
-    
-    [ "$mprec" = 0 ] && defzero=''
-    # exit early if any input is zero, the answer will always be 0 
+    #validate_inputs_debug mul $mprec "$@" || { echo "->mul: Invalid input in -s$mprec" "$@" >&2 ; return 1 ; }
+    # exit early if any input is zero. the answer will always be 0 
     # any variants of zero which get by here will be handled below
     case " $@ " in *" 0 "*|*" .0 "*|*" 0.0 "*) echo "0$defzero" ; return ;;esac
     
@@ -256,10 +267,8 @@ mul(){ mprec=off
         mnxt=$1
         case $r_mul in -*) mrsign='-' r_mul=${r_mul#*-} ;; *) mrsign='+' r_mul=${r_mul#*+} ;;esac
         case $mnxt in -*) mnxtsign='-' mnxt=${mnxt#*-} ;; *) mnxtsign='+' mnxt=${mnxt#*+} ;;esac
-        case $r_mul in  .*) mrint=0 mrfrac=${r_mul#*.} ;; *.*) mrint=${r_mul%.*} mrfrac=${r_mul#*.} ;; 
-            *) mrint=$r_mul mrfrac=0 ;;esac
-        case $mnxt in  .*) mnint=0 mnfrac=${mnxt#*.} ;; *.*) mnint=${mnxt%.*} mnfrac=${mnxt#*.} ;; 
-            *) mnint=$mnxt mnfrac=0 ;;esac
+        case $r_mul in  *.*) mrint=${r_mul%.*} mrfrac=${r_mul#*.} ;; *) mrint=$r_mul mrfrac='' ;;esac
+        case $mnxt in  *.*) mnint=${mnxt%.*} mnfrac=${mnxt#*.} ;; *) mnint=$mnxt mnfrac='' ;;esac
         # remove all leading zeros from integers
         while : ;do case $mrint in '0'*) mrint=${mrint#*?} ;; *) break ;;esac ;done
         while : ;do case $mnint in '0'*) mnint=${mnint#*?} ;; *) break ;;esac ;done 
@@ -306,7 +315,7 @@ mul(){ mprec=off
                         if [ ${#Am} -lt $mchnksize ] ; then
                             Amchnk=$Am Am='' 
                         else
-                            mumsk1=${Am%?????????*} Amchnk=${Am#*$mumsk1} Am=$mumsk1
+                            mumsk1=${Am%?????????*} Amchnk=${Am#*"$mumsk1"} Am=$mumsk1
                         fi
                         # depad
                         while : ;do case $Amchnk in '0'*) Amchnk=${Amchnk#*?} ;; *) break ;;esac ;done
@@ -317,7 +326,7 @@ mul(){ mprec=off
                                 if [ ${#Bm} -lt $mchnksize ] ; then
                                     Bmchnk=$Bm Bm=''
                                 else
-                                    mumsk2=${Bm%?????????*} Bmchnk=${Bm#*$mumsk2} Bm=$mumsk2
+                                    mumsk2=${Bm%?????????*} Bmchnk=${Bm#*"$mumsk2"} Bm=$mumsk2
                                 fi
                                 # depad
                                 while : ;do case $Bmchnk in '0'*) Bmchnk=${Bmchnk#*?} ;; *) break ;;esac ;done
@@ -348,7 +357,7 @@ mul(){ mprec=off
         icol=''   mtmp=0  mcnt=0   mfrac=''
         # separate frac -right to left
         while [ $mcnt -lt $mfsize ] ;do 
-            mumsk1=${r_mul%?*} mfrac=${r_mul#*$mumsk1}$mfrac r_mul=$mumsk1 mcnt=$((mcnt+1))
+            mumsk1=${r_mul%?*} mfrac=${r_mul#*"$mumsk1"}$mfrac r_mul=$mumsk1 mcnt=$((mcnt+1))
         done
         # depad _extra_ zeros on both sides of result
         while : ;do case $r_mul in '0'?*) r_mul=${r_mul#*?} ;; *) break ;;esac ;done
@@ -359,13 +368,16 @@ mul(){ mprec=off
         shift
     done
     
-    case $mprec in 
+    case $rprec in 
         0)  echo ${r_mul%.*} ;; off) echo $r_mul ;;
         *)  mfrac=${r_mul#*.}
-            while [ ${#mfrac} -gt $mprec ] ;do mfrac=${mfrac%?*} ;done
-            # remove trailing zeros ??
-            # while : ; do  case $mfrac in *?0) mfrac=${mfrac%?*} ;; *) break ;;esac ;done
-            echo ${r_mul%.*}'.'$mfrac ;;
+            case $rnd in 
+                off|'') while [ ${#mfrac} -gt $rprec ] ;do mfrac=${mfrac%?*} ;done
+                        while : ; do  case $mfrac in *?0) mfrac=${mfrac%?*} ;; *) break ;;esac ;done
+                        echo ${r_mul%.*}'.'$mfrac ;;
+                *) round $rnd -s$rprec $r_mul ;;
+            esac
+        ;;
     esac
     
     mfrac='' mprec='' r_mul=''
@@ -376,14 +388,20 @@ mul(){ mprec=off
 # div - perform division '/' or modulo '%' on 2 decimal numbers
 # depends on: 'cmp3w' 'tsst' 'add' 'mul'
 # this a one-shot function which, unlike 'add' and 'mul', doesn't accept a series of inputs
-div_help="  'div' usage: 'div [-s?] num1 (/ % m qr) num2'"
+div_help="  'div' usage: 'div [-s?] [-r...] num1 (/ % m qr) num2'"
 div() { scale_div=$defprec
-    case $1 in -s*) scale_div=${1#*-s} ; shift ;; ''|-h) echo "$div_help" >&2 ; return 1 ;; esac
+    case $1 in -s*) scale_div=${1#*-s} ; shift ;; ''|-h) div_help >&2 ; return 1 ;;esac
+    case $1 in -r*) rnd=${1#*-r} ; shift ;;esac
+    r_div=$scale_div ; scale_div=$((scale_div+1))
+    [ "$r_div" = 0 ] && defzero=''
+    
+    # require exactly 3 inputs
+    [ -z $3 ] || [ -n "$4" ] && { div_help >&2 ; return 1 ;}
     
     # require exactly 3 inputs
     [ -z $3 ] || [ -n "$4" ] && { echo "$div_help" >&2 ; return 1 ;}
     # make sure we have only valid scale, input numbers and appropriate operators for div
-    #validate_inputs_debug div $scale_div $@ || { echo "->div: Invalid input in '-s$scale_div' '$@'" >&2 ; return 1 ; }
+    #validate_inputs_debug div $scale_div "$@" || { echo "->div: Invalid input in -s$scale_div" "$@" >&2 ; return 1 ; }
     M=$1 oprtr=$2 D=$3
     
     case $M in '-'*) M_sign='-' M=${M#*-} ;; *) M_sign='+' M=${M#*+} ;;esac
@@ -421,7 +439,6 @@ div() { scale_div=$defprec
     # test early for division by zero or easy answers
     case $dvsr in '') echo "->div: Division by zero" >&2 ; return 1 ;;esac
 
-    [ "$scale_div" = 0 ] && defzero=''
     # if mod is zero, the answer is '0'
     case $mod in '') echo 0$defzero ; return ;;esac
     
@@ -467,8 +484,8 @@ div() { scale_div=$defprec
             while : ;do
                 case $mod in ?) divpad='' ;;
                     *)  seed=$(( ${#mod} - ${#dvsr} )) qcnt=0
-                        while [ $qcnt -lt $seed ] ;do divpad=$divpad'0' qcnt=$((qcnt+1)) ;done
-                        case $( cmp3w ${dvsr}$divpad $mod ) in '>') divpad=${divpad%?*} ;;esac
+                        while [ ${#divpad} -lt $seed ] ;do divpad=$divpad'0' ;done
+                        tsst ${dvsr}$divpad -gt $mod && divpad=${divpad#*?} 
                     ;;
                 esac
                 last_intrm_P=${dvsr}$divpad
@@ -476,7 +493,8 @@ div() { scale_div=$defprec
                     intrm_P=$( mul -s0 $fctr ${dvsr}$divpad )
                     case $( cmp3w  $intrm_P $mod ) in
                         '>') fctr=$(( $fctr - 1 )) intrm_P=$last_intrm_P ; break ;;
-                        '=') break ;;esac
+                        '=') break ;;
+                    esac
                     last_intrm_P=$intrm_P
                 done
                 tsst $mod -lt $dvsr && break
@@ -490,7 +508,7 @@ div() { scale_div=$defprec
     case $oprtr in '%'|'m'|'qr')
         # restore magnitude and sign of remainder
         mod=$( mul -s$scale_div ${Q_sign#*+}$Q_int x ${D_sign#*+}${D_int:-0}'.'$sane_dfrac )
-        mod=$( add -s$scale_div ${M_sign#*+}${M_int:-0}'.'$sane_mfrac - $mod )
+        mod=$( add -s$r_div ${M_sign#*+}${M_int:-0}'.'$sane_mfrac - $mod )
         case $oprtr in 
             # if oprtr is % (remainder) return modulus
             '%') echo $mod ; return ;;
@@ -500,13 +518,13 @@ div() { scale_div=$defprec
         # if signs are different, add the divisor, to yield a
         # floored modulo, like python, online-calculators, etc
         case ${M_sign}${D_sign} in 
-            '+-'|'-+') mod=$( add -s$scale_div $mod + ${D_sign#*+}${D_int:-0}'.'$sane_dfrac ) ;;
+            '+-'|'-+') mod=$( add -s$r_div $mod + ${D_sign#*+}${D_int:-0}'.'$sane_dfrac ) ;;
         esac
         echo $mod
         return ;;
     esac
     # or if scale is zero
-    case $scale_div in 0) 
+    case $r_div in 0) 
         [ "$Q_int" = 0 ] && echo $Q_int || echo ${Q_sign#*+}$Q_int 
         return ;; 
     esac
@@ -553,14 +571,116 @@ div() { scale_div=$defprec
         while [ $qcnt -lt ${punch#*-} ] ;do Q_frac='0'$Q_frac qcnt=$((qcnt+1)) ;done ;;
     esac
     
-    # remove trailing zeros from fraction
-    while : ; do  case $Q_frac in *?0) Q_frac=${Q_frac%?*} ;; *) break ;;esac ;done
-    
-    echo ${Q_sign#*+}$Q_int'.'${Q_frac:-0}
+    if [ ${#Q_frac} -lt $r_div ] ; then
+        # remove trailing zeros from fraction
+        while : ; do  case $Q_frac in *?0) Q_frac=${Q_frac%?*} ;; *) break ;;esac ;done
+        echo ${Q_sign#*+}$Q_int'.'${Q_frac:-0}
+    else
+        case $rnd in 
+            off|'') while [ ${#Q_frac} -gt $r_div ] ;do Q_frac=${Q_frac%?*} ; done
+                 echo ${Q_sign#*+}$Q_int'.'${Q_frac:-0} ;;
+            #'') pad=5 cnt=0 
+            #    while [ $cnt -lt $r_div ] ; do pad="0$pad" ; cnt=$((cnt+1)) ; done
+            #    add -s$r_div ${Q_sign#*+}'.'$pad + ${Q_sign#*+}$Q_int'.'${Q_frac:-0} ;;
+            *) round $rnd -s$r_div ${Q_sign#*+}$Q_int'.'${Q_frac:-0} ;;
+        esac
+    fi
     Q_sign='' Q_int='' Q_frac=''
 } ## div
 # scale_div= M= oprtr= D= M_sign= D_sign= Q_sign= M_int= D_int= M_frac= D_frac= mod= dvsr= Q_fracsize= Q_int= Q_frac=
 # qcnt= this_q= seed= divpad= last_intrm_P= fctr= intrm_P= punch= me= de= sane_mfrac= sane_dfrac= qlimit= rounding= Q=
+round_help="'round' usage: round (method) [-s?] decimal-number"
+round() { rnd_scale=$defprec
+    case $1 in ''|-h) echo  $round_help >&2 ; return ;; *) method=$1 ; shift ;;esac
+    case $1 in -s*) rnd_scale=${1#*-s} ; shift ;;esac
+    case $1 in *.*) int=${1%%.*} frac=${1#*.} ;; 
+        '') echo "-> round: Missing input" >&2 ; return ;; 
+        *) int=$1 frac='0' ;;
+    esac
+    case $int in -*) sign='-' int=${int#*-} ;; *) sign='' int=${int#*+} ;;esac
+    # truncate, or round-toward-zero is easy out
+    case $method in trnc|trunc) while [ ${#frac} -gt $rnd_scale ] ;do frac=${frac%?*} ;done
+            # remove trailing zeros ??
+            while : ; do  case $frac in *?0) frac=${frac%?*} ;; *) break ;;esac ;done
+            echo ${sign}${int}'.'$frac
+            return ;;
+            ceil|floor|flor|hup|hfup|hev|hfev) : ;;
+            *) echo "-> round: Invalid rounding method '$method' " >&2
+                echo "-> round: Try one of: ceil flor hfup hfev trnc" >&2
+                return 1
+            ;;
+    esac
+    oldfrac=$frac
+    
+    case $rnd_scale in 
+        0) mask=${int%?*} ; lastchar=${int#*"$mask"} ;;
+        *) cnt=0 ; pad=''
+            while [ $cnt -lt ${rnd_scale} ] ;do 
+                mask=${frac#*?} ; char=${frac%"${mask}"*}
+                newfrac="$newfrac${char}" ; frac=$mask
+                pad='0'"$pad" ; cnt=$((cnt+1))
+            done
+            lastchar=$char
+        ;;
+    esac
+    
+    mask=${frac#*?} ; char2round=${frac%"${mask}"*}
+    
+    case $method in
+        ceil)   if [ '-' = "$sign" ] ; then
+                     case $rnd_scale in 0) out="-"$int ;; *) out="-"$int'.'${newfrac:-0} ;;esac
+                else
+                    case $rnd_scale in 
+                        0) tsst ${oldfrac:-0} -eq 0  && out=$int || out=$( add -s0 $int + 1 ) ;;
+                        *)  [ ${char2round:-0} = 0 ] || pad=${pad#*?}'1'
+                            out=$( add -s$rnd_scale '.'${pad:-0} + $int'.'${newfrac:-0}$char2round ) ;;
+                    esac
+                fi
+        ;;
+        floor|flor)  
+                if [ '-' = "$sign" ] ; then
+                    case $rnd_scale in
+                        0)  tsst ${oldfrac} -eq 0 && out="-"$int || out="-"$( add -s0 $int + 1 ) ;;
+                        *)  [ ${char2round:-0} = 0 ] || pad=${pad#*?}'1'
+                            out=${sign#*+}$( add -s$rnd_scale '.'${pad} + $int'.'${newfrac:-0}$char2round ) ;;
+                    esac
+                else
+                    case $rnd_scale in 0) out=$int ;; *) out=$int'.'${newfrac:-0} ;;esac
+                fi
+        ;;
+        # half-up
+        hup|hfup) pad=$pad'5'
+            out=${sign#*+}$( add -s$rnd_scale '.'$pad + $int'.'${newfrac}$char2round )  ;;
+        # half-even
+        hev|hfev) signal=$( cmp3w $char2round 5) 
+            case $signal in '=')
+                    if [ $(( ${lastchar:-0} % 2 )) = "0"  ] ; then
+                        # if previous digit is even, truncate
+                        # but only if the rest of the fraction is zero
+                        case $mask in 
+                            *[!0]*) pad=$pad'5' newfrac="$newfrac${char2round}"
+                                    out=${sign#*+}$( add -s$rnd_scale '.'$pad + $int'.'${newfrac:-0} ) ;;
+                                *) out=${sign#*+}$int'.'${newfrac:-0} ;;
+                        esac
+                    else
+                        # if odd, round half-up
+                        pad=$pad'5' newfrac="$newfrac${char2round}"
+                        out=${sign#*+}$( add -s$rnd_scale '.'$pad + $int'.'${newfrac:-0} )
+                    fi
+                ;;
+                '>')  newfrac="$newfrac${char2round}" ; pad=${pad}'5'
+                      out=${sign#*+}$( add -s$rnd_scale '.'$pad + $int'.'${newfrac:-0} )
+                ;;
+                '<')
+                    case $rnd_scale in 0) out=${sign#*+}$int ;; *) out=${sign#*+}$int'.'${newfrac:-0} ;;esac
+                ;;
+            esac
+        ;;
+    esac
+    pad=''
+    echo $out
+} ## round
+# rnd_scale= method= int= frac= sign= oldfrac= mask= lastchar= cnt= pad= char2round= out= signal=
 
 # as the name says, do nothing. For measuring startup latency, like this: 'time iq do_nothing
 do_nothing() { : ;} ## tue_nix
