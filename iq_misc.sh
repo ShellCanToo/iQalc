@@ -3,15 +3,19 @@
 # 'iq_misc.sh' is a Module of the iQalc/IQ precision calculator
 # It is not an executable program
 
-# Copyright Gilbert Ashley 6 August 2023
+# Copyright Gilbert Ashley 18 December 2023
 # Contact: perceptronic@proton.me  Subject-line: iQalc
 
-# iq_misc version=1.81
+# iq_misc version=1.82
+
+# new function - invert supports e-notation and SigScale
+# new function - shift10 performs multiply/divide by shifting decimal
+# spow - removed
 
 # shellcheck disable=SC2034,SC2086,SC2004,SC2154,SC2068,SC2046
 
 # List of functions included here:
-iqmisc="factorial gcf dec2ratio spow pmod_eucl div_floor dot_1d mat2 "
+iqmisc="factorial gcf dec2ratio invert pmod_eucl div_floor dot_1d mat2 shift10 "
 
 ### Miscellaneous functions currently unused elsewhere
 
@@ -94,61 +98,79 @@ dec2ratio() { case $1 in -s*) shift ;;esac   # scale is unused and ignored
 # Nom= Denom= Denom_size= cnt= runs= sim_try= N_test_sf= D_test_sf=
 ### End Miscellaneous functions
 
-# spow - raise an integer to an integer power
-# a negative exponent returns the inverse: 1/x^n
-# spow mimicks/enhances the '**' operator of bash, zsh and ksh,
-spow_help() {
-echo "  'spow' usage: 'spow [-s?] base [^] exponent'
-  
-    'spow' is an enhancement of the exponentiation operator '**'
-    'base' and 'exponent' must be integers, positive or negative.
-    Example: 'spow 3 ^ 65' = 10301051460877537453973547267843
-    
-    The scale option only applies when 'exponent' is negative.
-    SigFig scaling is used, so spow returns significant digits:
-    Example: 'spow -s8 7 ^ -13' = 0.000000000010321087
-    If not given, default scale ($defprec) is used:
-    Example: 'spow -7 ^ -13' = -0.000000000010321
-  "
-}
-spow() { bn_scale=$defprec
-    case $1 in ''|-h) spow_help >&2 ; return 1 ;; -s*) bn_scale=${1#*-s} ; shift ;; esac
-    case $1 in *.*) echo "->spow: only integer bases allowed" >&2 ; return ;;esac
-    base_bnp=$1 ; shift
-    case $1 in '^') shift ;;esac
-    case $1 in *.*) echo "->spow: only integer exponents allowed" >&2 ; return 1 ;;
-        -*) exp_bnp=${1#-} ; bnp_neg='-' ;;
-        *) exp_bnp=$1 ;;
-    esac
-    
-    # special cases where base or exp equal 0, 1 or -1
-    case $base_bnp in 1) echo '1' ; return;; 0) echo '0' ; return;; esac
-    case ${bnp_neg}$exp_bnp in 1) echo $base_bnp ; return;; 0) echo '0' ; return;; 
-            -1) div -s$bn_scale 1 / $base_bnp ; return ;; 
-    esac
-    # finally do the operation
-    out_bnp=$base_bnp
-    exp_bnp=$((exp_bnp-1))
-    # Exponentiation by Squaring and Halving
-    while : ; do
-        [ $((exp_bnp%2)) -ne 0 ] && out_bnp=$( mul -s0 $out_bnp $base_bnp )
-        exp_bnp=$((exp_bnp/2))
-        [ $exp_bnp -eq 0 ] && break
-        base_bnp=$( mul -s0 $base_bnp $base_bnp )
-    done
-    # handle negative exponents using SigFig scaling
-    case $bnp_neg in '-') 
-        case $out_bnp in 
-            '-'*) bn_scale=$(( ${#out_bnp} + $bn_scale - 2 )) ;;
-            *) bn_scale=$(( ${#out_bnp} + $bn_scale - 1 ));;
-        esac
-        out_bnp=$( div -s$bn_scale 1 / $out_bnp ) 
-        ;; 
-    esac
-    echo $out_bnp
-    bnp_neg=''
-} ## spow
 # bn_scale= base_bnp= exp_bnp= bnp_neg= out_bnp=
+# invert - returns the inversion of a number (1/X)
+# depends on: 'div' 'tsst'
+invert_help() {
+echo "   'invert' usage: 'invert [-s?,-S?,-e?] Number'
+    
+    Returns the inversion (1/X) of any number. Number
+    can be positive or negative, expressed as an integer,
+    decimal or in Exponential Notation.
+    
+    'invert' returns answers in normally scaled outputs or in
+    Significant Digits using the scaling options: -s? or -S?
+    Example: 'invert -s1 -.99999995' = -1.0
+    Example: 'invert -S1 -.99999995' = -1.00000005
+    Example: 'invert -s8 12.99999999' = 0.07692307
+    Example: 'invert -S8 12.99999999' = 0.076923076
+    
+    Inputs in Exponential Notation are automatically detected
+    and answers are returned in Exponential Notation:
+    Example: 'invert -S8 1.2e10' = 8.33333333e-11
+    Example: 'invert -S8 1.2e-10' = 8.33333333e9
+    (works with any of the scaling types -s? -S? or -e?)
+    "
+}
+invert() { invprec=$defprec   SigScale=0 E_note=0 invneg=''
+    case $1 in -s*) invprec=${1#*-s} ; shift ;; -S*) invprec=${1#*-S}  SigScale=1 ; shift ;;
+        -e*) invprec=${1#*-e} ; shift ;; ''|-h) invert_help >&2 ; return 1 ;;
+    esac
+    case $1 in -*) invneg='-' num=${1#*-} ;; *) num=$1 ;;esac
+    case $num in 
+        [1-9].?*e-?*) E=${num#*e-}
+            inv=$( div -s$invprec 10 / $invneg${num%e*} )
+            echo ${inv}'e'$((E-1)) ;;
+        [1-9].?*e?*) E=${num#*e}
+            inv=$( div -s$invprec 10 / $invneg${num%e*} )
+            echo ${inv}'e-'$((E+1)) ;;
+        *e*) echo "->invert: Invalid Exponential Notation in '$1'" ; return 1 ;; 
+        0.?*|.?*) 
+            if [ 1 = "$SigScale" ] ; then
+                frac=${num#*.} # fractions smaller than .4762 coule be ignored
+                if [ ${#frac} -ge $invprec ] ; then
+                    # raise precision by adding the fraction size
+                    res=$( div -s$((invprec+${#frac})) 1 / $invneg${num} )
+                    # parse fractionional part left-to-right
+                    stub=${res#*.} out=''
+                    # add any leading zeros to the fraction output
+                    while : ; do 
+                        case $stub in 
+                            0*) mask=${stub#*?} out=${out}${stub%"${mask}"*} stub=$mask ;; 
+                            *) break ;; 
+                        esac
+                    done
+                    scayle=0
+                    # add digits to output until SigScale is reached
+                    while [ $scayle -lt $invprec ] ; do
+                        scayle=$((scayle+1)) mask=${stub#*?}
+                        out=${out}${stub%"${mask}"*} stub=$mask
+                    done
+                    echo ${res%.*}'.'$out
+                else
+                    div -s$invprec 1 / $invneg${num}
+                fi
+            else
+                div -s$invprec 1 / $invneg${num}
+            fi
+        ;;
+        *)  if [ 1 = "$SigScale" ] ; then
+                tsst $num -gt 10 && { int=${num%.*} invprec=$(( $invprec + ${#int} - 1 )) ;}
+            fi
+            div -s$invprec 1 / $invneg$num ;;
+    esac
+
+} ##invert
 
 # positive Euclidian Modulo
 # from: https://stackoverflow.com/questions/14997165/fastest-way-to-get-a-positive-modulo-in-c-c
@@ -276,3 +298,22 @@ mat2() { scale=$defprec
 #mat2 -s6 -l3 -r2  0.05 0.1 0.01 .052 .205 .091 .106 .277 .183
 # outputs a space separated array of each sum
 
+# shift10 - perform multiplication by 10's shifting the decimal place
+shift10() { s=$1 n=$2
+    case $n in *.*) nint=${n%.*} nfrac=${n#*.} ;; *) nint=$n nfrac='' ;; esac
+    bite=''
+    case $s in 
+    -*) while [ ${#bite} -lt ${s#*-} ] ; do
+            mask=${nint%?*}  char=${nint#*"${mask}"}
+            bite=${char:-0}${bite}  nint=$mask
+        done
+        echo ${nint:-0}'.'${bite}${nfrac} ;;
+    *)  while [ ${#bite} -lt $s ] ; do
+            mask=${nfrac#?*}  char=${nfrac%"${mask}"*}
+            bite=${bite}${char:-0}  nfrac=$mask
+        done
+        echo ${nint}${bite}'.'${nfrac:-0} ;;
+    esac
+} ## shift10
+# shift10 4 1.2345  returns: 1245.0
+# shift10 -2 1.2345  returns 0.012345
