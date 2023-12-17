@@ -63,15 +63,12 @@ Prints a list of avialable functions
 .SS NUMBERS
 .PP
 Input numbers can be integers or decimal numbers of nearly any length.
-Maximum number length is limited by the shells\[cq] maximum variable
-length.
+Maximum number length is limited only by the shells\[cq] maximum
+variable length.
 .PP
 Inputs and outputs are in normal decimal notation:
 .PP
 1726 -1726 1726.34869 -1726.5736
-.PP
-Maximum number length is equal to the shells\[cq] maximum variable
-length.
 .SS STRUCTURE
 .PP
 \f[I]iq\f[R] consists of shell functions, each of which performs a basic
@@ -109,7 +106,7 @@ When calculating a series of inputs with \f[I]add\f[R] or \f[I]mul\f[R],
 scaling is only performed after the last operation.
 Otherwise they return the full answer without truncating.
 .PP
-If specified scale is zero `-s0', output is returned in integer form..
+If specified scale is zero `-s0', output is returned in integer form.
 .PP
 Final results from \f[I]mul\f[R] and \f[I]div\f[R] can be rounded using
 any one of 5 methods:
@@ -137,10 +134,10 @@ shell\[cq]s `test' builtin:
 .SS SCALE
 .PP
 Scale values must be positive integers, and signify the number of places
-after the Decimal Point.
+of precision after the Decimal Point.
 .PP
 There are no hard limits on scale/precision for any of the Basic
-Arithmetic operations.
+Arithmetic operations, but larger scales do take longer to calculate.
 .SH EXPRESSIONS
 .PP
 \f[B]iq\f[R] takes advantage of the shell\[cq]s native white-space
@@ -156,10 +153,10 @@ this:
 .IP
 .nf
 \f[C]
-iq add 242 $(iq mul 3 4 )
+iq add 242 $(iq mul 3 4)
 var=$(iq add 242 $(iq mul 3 4))
 In scripts or in-session mode:
-add 242 $( mul 3 4 )
+add 242 $(mul 3 4)
 var=$(add 242 $(mul 3 4))
 \f[R]
 .fi
@@ -197,7 +194,6 @@ optional. Currently, no rounding is done by \[aq]add\[aq].
 \f[C]
 Usage: \[aq]mul [-s?] [-r...] num1 [xX] num2 ... numN\[aq]
 
-Operators are optional.
 If the scale option is omitted or set to off \[aq]-soff\[aq],
 no truncation or rounding of the result is done.
 Example: \[aq]mul 2.340876445 x 1827.74904\[aq] = 4278.5346751073628
@@ -208,7 +204,7 @@ Example: \[aq]mul -s0 2.340876445 x 1827.74904\[aq] = 4278
 Otherwise, final result is truncated to the given scale.
 Example: \[aq]mul -s4 2.340876445 X 1827.74904\[aq] = 4278.5346
 
-Or, use the \[aq]-r..\[aq] options to round results, using
+Or, use the \[aq]-r...\[aq] options to round results, using
 one method from: -rhfev , -rhfup , -rceil, -rflor, -rtrnc
 for half-up, half-even, ceiling, floor or truncate.
 
@@ -218,7 +214,7 @@ Example: \[aq]mul -s2 -rceil 2.340876445 1827.74904\[aq] = 4278.54
 If the result is shorter than the given scale, then the
 answer is exact and no rounding or truncation is done.
 Results are only truncated or rounded after the final
-calculation of a series of inputs.
+calculation of a series of inputs. Operators are optional.
 \f[R]
 .fi
 .PP
@@ -247,7 +243,7 @@ div -s2 -3.52 m 1.4 = 0.68
 \[aq]qr\[aq] (divmod) returns quotient and remainder
 div -s2 -3.52 qr 1.4  =  -2.0 -0.72
 
-The \[aq]-r...\[aq] option performs rounding after full division,
+The \[aq]-r...\[aq] options perform rounding after full division,
 using one method from: -rhfup, -rhfev, -rceil, -rflor, -rtrnc
 for half-up, half-even, ceiling, floor or truncate.
 div -s20  -2.340876 / 17.749048         = -0.13188741165159956748
@@ -295,7 +291,7 @@ are wanted, for each of the 3 conditions.
 \f[R]
 .fi
 .PP
-\f[B]round\f[R] \[em]- Rounding of integer or decimal Numbers
+\f[B]round\f[R] \[em]- Rounding of decimal Numbers
 .IP
 .nf
 \f[C]
@@ -312,7 +308,8 @@ Example: \[aq]round hfev -s9 0.9999999985\[aq] returns \[aq]0.999999998\[aq]
 Example: \[aq]round hfev -s9 0.9999999995\[aq] returns \[aq]1.000000000\[aq]
 
 Input must be at least 1 digit longer than requested scale.
-Otherwise, no rounding is done.
+Otherwise, no rounding is done. Integer inputs are
+returned without rounding.
 
 Half-up is the \[aq]normal\[aq] most-used method of rounding. 
 Half-even rounding is used in financial calculations.

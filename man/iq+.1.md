@@ -44,7 +44,7 @@ When run from the CLI, **iq+** automatically 'sources', or includes the basic ma
 
 SYNTAX
 ------
-None of the functions in **iq+** require an Operator, but the Carat '^' can be used with 'pow', 'ipow' and epow'.
+None of the functions in **iq+** require an Operator, but the Carat '^' can be used with 'pow' and epow'.
 
 SCALE
 -----
@@ -89,48 +89,33 @@ FUNCTIONS
 
 **pow** ---- Raises an integer or decimal number to a given power
 
-    Usage: 'pow [-s?] base [^] exponent'
+    Usage: 'pow [-s?] [-S?] base [^] exponent'
     
     Raises a number (base) to a power (exponent).
-    For integer exponents, 'base' and scale are unlimited.
+    When the exponent is an integer, base and exponent
+    can be any size and precision is unlimited.
     Example: 'pow -s9 3.141592 ^ 6' = 961.387993507
     Example: 'pow -s12 12.141592 ^ -6' = 0.000000312137
+    Supports Significant Digit scaling, with -S? option.
+    Example: 'pow -S12 12.141592 ^ -6' = 0.000000312137674316
     
-    Fractional exponents are supported, within certain
-    ranges, shown roughly below:
-    59999.99999 ^ 0.999                     0.99999 ^ 1000009.999
-    239.99999 ^ 1.999                       1.09999 ^ 109.999
-    35.99999 ^ 2.999    5.99999 ^ 5.999     1.24999 ^ 45.999
-    14.99999 ^ 3.999                        1.49999 ^ 26.999
-    8.99999 ^ 4.999                         1.99999 ^ 14.999
+    Decimal exponents are supported, within a limited range.
+    Output precision is limited to 12 decimal places.
     
-    As seen above, when either 'base' or 'exponent' are <1,
-    the allowed range of the other becomes relatively large.
-    Above ranges support scales of 6-12, with a slightly wider
-    range supporting a reduced scale of 3 less than requested.
-    Example: 'pow -s8 7.999999 6.999999'  =  2097145.80409
+    If base < 1, exponent can be any positive number:
+    Example: 'pow -S6 0.53428 ^ 19.9345' = 0.00000374291
     
-    Recommended scale: 4-12
-    Execution times increases dramatically when scale is >8
-    Use of the Operator '^' is optional.
-
-**ipow and epow** ----  Both serve as back-end functions to *pow* but can also be used separately.
-
-    Both functions work only with a positive 'base' and integer
-    'exponent'. *epow* is particularly useful with very large 
-    or small numbers, since it can return answers in E-Notation. 
-
-**ipow** ---- Raise a positive 'base' to an integer power
-
-    Usage: 'ipow [-s?] base [^] exponent'
+    If exponent < 1, base must be less than 100:
+    Example: 'pow -s12 99.5342862 ^ 0.9345' = 73.638595054326
     
-    'base' must be a positive number, integer or decimal.
-    Exponents can be negative or positive, but must be integers.
-    Example: 'ipow -s20 3.14 ^ -4' = 0.01028682632761480208
-    Example: 'ipow -s9  9.35234 16' = 3425504893420641.05730195
-    Use of the Operator '^' is optional.
+    If base and exponent are both greater than 1, base must
+    be <10, and base+exponent must be less than 14:
+    Example: 'pow -s6 5.3765 3.8184' = 615.658477
+    Example: 'pow -s8 2.718282 ^ 9.141592' = 9335.620993414
+    Example: 'pow -s9 2.718282 ^ -9.141592' = 0.000107116
+    Example: 'pow -S9 2.718282 ^ -9.141592' = 0.00010711660
 
-**epow** ---- Raise a positive 'base' to an integer power
+**epow** ---- Raise 'base' to an integer power
 
     Usage: 'epow [-s?,-S,-e?] base [^] exponent' 
     

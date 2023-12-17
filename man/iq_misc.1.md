@@ -23,20 +23,27 @@ Utility Functions
     Requires a decimal fraction input  
     Example: 'dec2ratio 0.1388' = 347/2500
     
-**spow** ---- Raise an integer to an integer power
+**invert** ---- Returns the inversion (1/X) of any number
 
-    Usage: 'spow [-s?] base [^] exponent'
-  
-    'spow' is an enhancement of the exponentiation operator '**'
-    'base' and 'exponent' must be integers, positive or negative.
-    Example: 'spow 3 ^ 65' = 10301051460877537453973547267843
+    Usage: 'invert [-s?,-S?,-e?] Number'
     
-    The scale option only applies when 'exponent' is negative.
-    SigFig scaling is used, so spow returns significant digits:
-    Example: 'spow -s8 7 ^ -13' = 0.000000000010321087
-    If not given, default scale ($defprec) is used:
-    Example: 'spow -7 ^ -13' = -0.000000000010321
-
+    Returns the inversion (1/X) of any number. Number
+    can be positive or negative, expressed as an integer,
+    decimal or in Exponential Notation.
+    
+    'invert' returns answers in normally scaled outputs or in
+    Significant Digits using the scaling options: -s? or -S?
+    Example: 'invert -s1 -.99999995' = -1.0
+    Example: 'invert -S1 -.99999995' = -1.00000005
+    Example: 'invert -s8 12.99999999' = 0.07692307
+    Example: 'invert -S8 12.99999999' = 0.076923076
+    
+    Inputs in Exponential Notation are automatically detected
+    and answers are returned in Exponential Notation:
+    Example: 'invert -S8 1.2e10' = 8.33333333e-11
+    Example: 'invert -S8 1.2e-10' = 8.33333333e9
+    (works with any of the scaling types -s? -S? or -e?)
+    
 **pmod_eucl** ---- Returns a Positive Euclidian Modulo
 
     Usage: 'pmod_eucl [-s?] dividend divisor'

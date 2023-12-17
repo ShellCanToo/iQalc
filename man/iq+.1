@@ -55,7 +55,7 @@ available from \f[B]iq+\f[R].
 .SS SYNTAX
 .PP
 None of the functions in \f[B]iq+\f[R] require an Operator, but the
-Carat `\[ha]' can be used with `pow', `ipow' and epow\[cq].
+Carat `\[ha]' can be used with `pow' and epow\[cq].
 .SS SCALE
 .PP
 Unlike the Basic Math functions of \f[I]add\f[R], \f[I]mul\f[R] and
@@ -119,59 +119,35 @@ power
 .IP
 .nf
 \f[C]
-Usage: \[aq]pow [-s?] base [\[ha]] exponent\[aq]
+Usage: \[aq]pow [-s?] [-S?] base [\[ha]] exponent\[aq]
 
 Raises a number (base) to a power (exponent).
-For integer exponents, \[aq]base\[aq] and scale are unlimited.
+When the exponent is an integer, base and exponent
+can be any size and precision is unlimited.
 Example: \[aq]pow -s9 3.141592 \[ha] 6\[aq] = 961.387993507
 Example: \[aq]pow -s12 12.141592 \[ha] -6\[aq] = 0.000000312137
+Supports Significant Digit scaling, with -S? option.
+Example: \[aq]pow -S12 12.141592 \[ha] -6\[aq] = 0.000000312137674316
 
-Fractional exponents are supported, within certain
-ranges, shown roughly below:
-59999.99999 \[ha] 0.999                     0.99999 \[ha] 1000009.999
-239.99999 \[ha] 1.999                       1.09999 \[ha] 109.999
-35.99999 \[ha] 2.999    5.99999 \[ha] 5.999     1.24999 \[ha] 45.999
-14.99999 \[ha] 3.999                        1.49999 \[ha] 26.999
-8.99999 \[ha] 4.999                         1.99999 \[ha] 14.999
+Decimal exponents are supported, within a limited range.
+Output precision is limited to 12 decimal places.
 
-As seen above, when either \[aq]base\[aq] or \[aq]exponent\[aq] are <1,
-the allowed range of the other becomes relatively large.
-Above ranges support scales of 6-12, with a slightly wider
-range supporting a reduced scale of 3 less than requested.
-Example: \[aq]pow -s8 7.999999 6.999999\[aq]  =  2097145.80409
+If base < 1, exponent can be any positive number:
+Example: \[aq]pow -S6 0.53428 \[ha] 19.9345\[aq] = 0.00000374291
 
-Recommended scale: 4-12
-Execution times increases dramatically when scale is >8
-Use of the Operator \[aq]\[ha]\[aq] is optional.
+If exponent < 1, base must be less than 100:
+Example: \[aq]pow -s12 99.5342862 \[ha] 0.9345\[aq] = 73.638595054326
+
+If base and exponent are both greater than 1, base must
+be <10, and base+exponent must be less than 14:
+Example: \[aq]pow -s6 5.3765 3.8184\[aq] = 615.658477
+Example: \[aq]pow -s8 2.718282 \[ha] 9.141592\[aq] = 9335.620993414
+Example: \[aq]pow -s9 2.718282 \[ha] -9.141592\[aq] = 0.000107116
+Example: \[aq]pow -S9 2.718282 \[ha] -9.141592\[aq] = 0.00010711660
 \f[R]
 .fi
 .PP
-\f[B]ipow and epow\f[R] \[em]- Both serve as back-end functions to
-\f[I]pow\f[R] but can also be used separately.
-.IP
-.nf
-\f[C]
-Both functions work only with a positive \[aq]base\[aq] and integer
-\[aq]exponent\[aq]. *epow* is particularly useful with very large 
-or small numbers, since it can return answers in E-Notation. 
-\f[R]
-.fi
-.PP
-\f[B]ipow\f[R] \[em]- Raise a positive `base' to an integer power
-.IP
-.nf
-\f[C]
-Usage: \[aq]ipow [-s?] base [\[ha]] exponent\[aq]
-
-\[aq]base\[aq] must be a positive number, integer or decimal.
-Exponents can be negative or positive, but must be integers.
-Example: \[aq]ipow -s20 3.14 \[ha] -4\[aq] = 0.01028682632761480208
-Example: \[aq]ipow -s9  9.35234 16\[aq] = 3425504893420641.05730195
-Use of the Operator \[aq]\[ha]\[aq] is optional.
-\f[R]
-.fi
-.PP
-\f[B]epow\f[R] \[em]- Raise a positive `base' to an integer power
+\f[B]epow\f[R] \[em]- Raise `base' to an integer power
 .IP
 .nf
 \f[C]
