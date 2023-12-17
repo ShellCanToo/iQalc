@@ -3,16 +3,14 @@
 # 'iq_util.sh' is a Module of the iQalc/IQ precision calculator
 # It is not an executable program
 
-# Copyright Gilbert Ashley 6 August 2023
+# Copyright Gilbert Ashley 18 December 2023
 # Contact: perceptronic@proton.me  Subject-line: iQalc
 
-# iq_util version=1.81
+# iq_util version=1.82
+
 # shellcheck disable=SC2034,SC2154,SC2086,SC2004,SC2089,SC2090,SC2046
 
 iqutil="is_num padchars incr ceil floor trunc padit"
-
-# zsh has quirks which can be eliminated with this 'emulate sh' or 'emulate ksh'
-#[ -n "$ZSH_VERSION" ] && emulate sh >/dev/null 2>/dev/null
 
 ## is_num
 # check if an input is really a value

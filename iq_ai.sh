@@ -4,10 +4,10 @@
 # It is not an executable program
 # It contains various Neural Network Activation Functions 
 
-# Copyright Gilbert Ashley 6 August 2023
+# Copyright Gilbert Ashley 18 December 2023
 # Contact:perceptronic@proton.me  Subject-line: iQalc
 
-# iq_ai_funcs version=1.81
+# iq_ai_funcs version=1.82
 
 # List of functions and derivative functions included here:
 # logistic functions: tanh, tanh_pade, tanh_d1, tanh_d2, sigmoid, sigmoid_tanh, sigmoid_d1, sigmoid_d2
@@ -17,26 +17,6 @@
 
 # disable shellcheck style notices and un-helpful suggestions
 # shellcheck disable=SC2034,SC2086,SC2295,SC2004,SC1090,SC1091,SC2154,SC2046
-
-# swish, swish_exp, logish, mish all validated
-# softmax2 replaced with softy - accepts any number of inputs
-# softy - optionally outputs derivatives
-# softmax - rewrite to acccept any number of inputs
-# new function - swish_exp uses exp instead of sigmoid
-# new function - swish_d1 First Derivative of swish
-# new function - erf Gaussian Error Function
-# new function - erf_d1 First Derivative of erf
-# new function - erf_fast fast, low-precision erf
-# new function - erfcx erf-family solver with higher range at higher precisiom
-#                returns erf, erfc or erfcx
-# new function - signrelu
-# new function - signrelu_d1
-# new function - pelu includes parameter derivatives
-# new function - sinerelu
-# new function - sinerelu_d1
-# tanh - add optional output in radians
-# new function - one_hot
-# new function - two_hot
 
 iqaimain="sigmoid sigmoid_tanh tanh softsign swish erf erfcx erf_fast one_hot two_hot "
 iqaiother="softmax softy softplus relu lrelu sgn tanh_pade swish_exp signrelu sinerelu pelu "

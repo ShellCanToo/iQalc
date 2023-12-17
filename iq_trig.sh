@@ -1,30 +1,20 @@
 #!/bin/sh
 
-# This file is part of the IQ4sh precision calculator
+# This file is a module of the iQalc precision calculator
 
-# Copyright Gilbert Ashley 6 August 2023
+# Copyright Gilbert Ashley 18 December 2023
 # Contact: OldGringo9876@gmx.de  Subject-line: IQ4sh
 
-# iq_trig_version=1.81
+# iq_trig_version=1.82
 # shellcheck disable=SC2034,SC2154,SC2086
-
-# trig functions moved here from iq+
-# sin cos tan - fixed wrong outputs for some fringe cases
-# renamed rdns2dgrs/dgrs2rdns as rad2deg/deg2rad
-# new functions - 'atan' and 'atan2' calculate arctangents in degrees/radians
-# new function - is_near_int determines if input is close to being an integer
-# cos - correct output for cos(0)
 
 # List of functions included here:
 # Main functions: sin cos tan atan atan2 rad2deg deg2rad
 
 iqtrig="sin cos tan atan atan2 "
 iqtrigutil="rad2deg deg2rad is_near_int "
-### Trigonometry functions
 
-trig_help() {
-:
-}
+### Trigonometry functions
 
 # sin - Calculate the Sine of an angle
 # depends on: 'sin14' 'cos14' 'deg2rad' 'is_near_int' 'tsst' 'add'
